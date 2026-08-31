@@ -1,8 +1,8 @@
 {
   "name": "goldie-android",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Google Play screenshots, feature graphics, listing packages, and compliance checks for Android apps.",
-  "author": { "name": "Durmuş Ün" },
+  "author": { "name": "durmusun" },
   "homepage": "https://github.com/durmusun/goldie-android",
   "repository": "https://github.com/durmusun/goldie-android",
   "license": "MIT",

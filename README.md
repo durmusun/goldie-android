@@ -41,7 +41,6 @@ claims. A human must still review visual quality and misleading-content risk.
 
 - macOS;
 - Node.js 20.12 or newer;
-- [Bun](https://bun.sh);
 - Android SDK tools (`adb` and a running emulator);
 - `ffmpeg` and `ffprobe`;
 - a release APK;
@@ -54,22 +53,25 @@ emulator -list-avds
 emulator -avd <name>
 ```
 
-## Install from source
+## Install
 
-The first public release is source-first; no npm package has been published
-yet.
+Install the prebuilt release with one command. No repository clone or local
+build is required:
 
 ```bash
-git clone https://github.com/durmusun/goldie-android.git
-cd goldie-android
-bun install --frozen-lockfile
-bun run build
-./dist/cli.js help
+npm install -g https://github.com/durmusun/goldie-android/releases/latest/download/goldie-android.tgz
 ```
 
-The intended package and CLI name is `goldie-android`. When working from the
-source checkout, the examples below can be run as
-`bun src/cli.ts <command>` or `./dist/cli.js <command>`.
+Then verify the CLI:
+
+```bash
+goldie-android version
+goldie-android help
+```
+
+The project is prepared under the npm package name `goldie-android`, but the
+registry package has not been published yet. The release asset above contains
+the same prebuilt package and is the supported installation path.
 
 To install the included agent skill directly from GitHub:
 
@@ -106,24 +108,24 @@ Always run the complete validation sequence before treating an export as
 finished:
 
 ```bash
-GOLDIE_CONFIG=/absolute/path/goldie.config.ts ./dist/cli.js doctor
-GOLDIE_CONFIG=/absolute/path/goldie.config.ts ./dist/cli.js capture
-GOLDIE_CONFIG=/absolute/path/goldie.config.ts ./dist/cli.js frame
-GOLDIE_CONFIG=/absolute/path/goldie.config.ts ./dist/cli.js preview
-GOLDIE_CONFIG=/absolute/path/goldie.config.ts ./dist/cli.js manifest
-GOLDIE_CONFIG=/absolute/path/goldie.config.ts ./dist/cli.js verify
+GOLDIE_CONFIG=/absolute/path/goldie.config.ts goldie-android doctor
+GOLDIE_CONFIG=/absolute/path/goldie.config.ts goldie-android capture
+GOLDIE_CONFIG=/absolute/path/goldie.config.ts goldie-android frame
+GOLDIE_CONFIG=/absolute/path/goldie.config.ts goldie-android preview
+GOLDIE_CONFIG=/absolute/path/goldie.config.ts goldie-android manifest
+GOLDIE_CONFIG=/absolute/path/goldie.config.ts goldie-android verify
 ```
 
 Or run the whole pipeline:
 
 ```bash
-GOLDIE_CONFIG=/absolute/path/goldie.config.ts ./dist/cli.js all
+GOLDIE_CONFIG=/absolute/path/goldie.config.ts goldie-android all
 ```
 
 Open the visual editor with:
 
 ```bash
-GOLDIE_CONFIG=/absolute/path/goldie.config.ts ./dist/cli.js studio
+GOLDIE_CONFIG=/absolute/path/goldie.config.ts goldie-android studio
 ```
 
 Studio runs at <http://localhost:4321>. Its export action renders the selected
@@ -144,6 +146,8 @@ pipeline.
 
 ## Development
 
+Source development additionally requires [Bun](https://bun.sh).
+
 ```bash
 bun install --frozen-lockfile
 bun test
@@ -160,7 +164,7 @@ Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) before opening a pull request.
 - **Original Goldie:** Kacper Kapuściak and upstream contributors.
 - **Initial Android capture support:** Craig de Gouveia (`HughZurname`).
 - **Goldie Android Play packaging, compliance, Android framing, and Studio
-  integration:** Durmuş Ün.
+  integration:** [`durmusun`](https://github.com/durmusun).
 
 Commit history is preserved so every contribution remains attributable. This
 fork is not endorsed by Kacper Kapuściak, Craig de Gouveia, Software Mansion,
