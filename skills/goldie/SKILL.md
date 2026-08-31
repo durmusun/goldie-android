@@ -59,21 +59,21 @@ Example:
 
 ## Resolve the CLI
 
-Prefer the built source checkout while the npm package is unpublished:
+Install the prebuilt release when the CLI is not already available:
 
 ```bash
-bun /absolute/path/to/goldie-android/src/cli.ts help
+npm install -g https://github.com/durmusun/goldie-android/releases/latest/download/goldie-android.tgz
 ```
 
-If the released binary is installed, use:
+Then use the stable command:
 
 ```bash
 goldie-android help
 ```
 
-In the commands below, `goldie-android` means either invocation. Set
-`GOLDIE_CONFIG` on every command because shell state may not persist between
-tool calls.
+Set `GOLDIE_CONFIG` on every command because shell state may not persist
+between tool calls. Source checkout execution is an advanced development
+fallback, not the normal installation path.
 
 ## 1. Inspect before changing anything
 
