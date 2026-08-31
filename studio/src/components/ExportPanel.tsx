@@ -6,8 +6,9 @@ import { CUSTOM_TEMPLATE } from "../App";
 /**
  * The one place the goldie CLI runs: Export re-renders the screenshots and
  * the preview video from the raw captures with the current design, zips them,
- * and hands the browser the zip. Streams the CLI log while it runs (the video
- * render takes a while). Served by `goldie studio` and the Vite dev server alike (src/studio-server.ts).
+ * builds store-specific packages, and hands the browser the zip. Streams the
+ * CLI log while it runs (the video render takes a while). Served by
+ * `goldie studio` and the Vite dev server alike (src/studio-server.ts).
  */
 export function ExportPanel({
   background,
@@ -103,7 +104,7 @@ export function ExportPanel({
         ) : (
           <>
             <DownloadIcon />
-            Export screenshots
+            Export store assets
           </>
         )}
       </Button>

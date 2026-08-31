@@ -3,6 +3,7 @@ export { capture } from "./capture.ts";
 export type {
   Decoration,
   GoldieConfig,
+  GooglePlayConfig,
   PreviewScene,
   Scene,
   ScreenshotScene,
@@ -21,7 +22,15 @@ export {
 } from "./layouts.ts";
 export type { LocaleAssets, StoreManifest } from "./manifest.ts";
 export { writeManifest } from "./manifest.ts";
-export { renderPreview, renderScreenshots, verify } from "./render.ts";
+export {
+  expectedPlayScreenshotCount,
+  PLAY_STORE,
+  playCopyWarnings,
+  screenshotAltText,
+  validatePlayScreenshotSet,
+  writePlayStorePackage,
+} from "./play-store.ts";
+export { renderPlayFeatureGraphic, renderPreview, renderScreenshots, verify } from "./render.ts";
 export { FlowFailure, repairBrief } from "./repair.ts";
 export type { DeviceKey, DeviceSpec } from "./specs.ts";
 export { DEVICES, PREVIEW } from "./specs.ts";

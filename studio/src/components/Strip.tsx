@@ -3,6 +3,7 @@ import { Reorder } from "motion/react";
 import type React from "react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
+import { ANDROID_FRAME, androidBezelStyle } from "../../../src/frame";
 import {
   BADGE,
   type Composition,
@@ -65,6 +66,7 @@ export function Strip({
   locale,
   background,
   frameUrl,
+  frameVariant,
   fontFamily,
   copy,
   onCopy,
@@ -82,6 +84,7 @@ export function Strip({
   locale: string;
   background: string;
   frameUrl: string;
+  frameVariant: string;
   fontFamily: string;
   copy: Record<string, SceneCopy>;
   onCopy: (sceneId: string, field: "headline" | "subhead", text: string) => void;
@@ -213,9 +216,11 @@ export function Strip({
             slice={slice}
             tile={tileSpec.screenshot}
             theme={theme}
+            android={tileSpec.key === "android-phone"}
             screenOnly={screenOnly}
             background={background}
             frameUrl={frameUrl}
+            frameVariant={frameVariant}
             fontFamily={fontFamily}
             headline={copy[scene.id]?.headline?.[locale] ?? scene.headline[locale] ?? ""}
             subhead={copy[scene.id]?.subhead?.[locale] ?? scene.subhead?.[locale]}
@@ -607,9 +612,11 @@ function ScreenshotScene({
   slice,
   tile,
   theme,
+  android,
   screenOnly,
   background,
   frameUrl,
+  frameVariant,
   fontFamily,
   headline,
   subhead,
@@ -626,9 +633,11 @@ function ScreenshotScene({
   slice: number;
   tile: { width: number; height: number };
   theme: Theme;
+  android: boolean;
   screenOnly: boolean;
   background: string;
   frameUrl: string;
+  frameVariant: string;
   fontFamily: string;
   headline: string;
   subhead: string | undefined;
@@ -641,7 +650,10 @@ function ScreenshotScene({
   locale: string;
   onEdit?: (field: "headline" | "subhead", text: string) => void;
 }) {
-  const c = compose(spec, tile, theme, { screenOnly });
+  const c = compose(spec, tile, theme, {
+    screenOnly,
+    geom: android ? ANDROID_FRAME : undefined,
+  });
   const { w, h } = cq(tile);
   // Wider-than-reference tiles compose at a narrower design width; type follows it.
   const typeScale = c.designWidth / tile.width;
@@ -721,7 +733,9 @@ function ScreenshotScene({
               key={device.capture}
               device={device}
               tile={tile}
-              frameUrl={screenOnly ? null : frameUrl}
+              frameUrl={screenOnly || android ? null : frameUrl}
+              drawnBezel={android && !screenOnly}
+              bezelVariant={frameVariant}
               captureUrl={url}
               missing={url ? undefined : (secondSceneId ?? "secondScene")}
             />
@@ -741,18 +755,23 @@ function DeviceView({
   device,
   tile,
   frameUrl,
+  drawnBezel,
+  bezelVariant,
   captureUrl,
   missing,
 }: {
   device: Composition["devices"][number];
   tile: { width: number; height: number };
   frameUrl: string | null;
+  drawnBezel: boolean;
+  bezelVariant: string;
   captureUrl: string | undefined;
   /** Scene id to name in the placeholder when the capture is missing. */
   missing: string | undefined;
 }) {
   const { w, h } = cq(tile);
   const { frame, screen } = device;
+  const bezelStyle = androidBezelStyle(bezelVariant);
   // The screen as fractions of the device box, so it rotates with it.
   const pct = (v: number, of: number) => `${(v / of) * 100}%`;
   return (
@@ -764,6 +783,14 @@ function DeviceView({
         width: w(frame.width),
         height: h(frame.height),
         transform: device.rotate ? `rotate(${device.rotate}deg)` : undefined,
+        background: drawnBezel ? bezelStyle.fill : undefined,
+        borderRadius: drawnBezel ? w(screen.radius + (screen.left - frame.left)) : undefined,
+        boxShadow: drawnBezel
+          ? `0 ${w(tile.width * SCREEN_SHADOW.offsetY)} ${w(tile.width * SCREEN_SHADOW.blur)} ${SCREEN_SHADOW.color}`
+          : undefined,
+        outline: drawnBezel
+          ? `${w(Math.max(1, (screen.left - frame.left) * 0.12))} solid ${bezelStyle.stroke}`
+          : undefined,
       }}
     >
       <div
@@ -776,9 +803,10 @@ function DeviceView({
           borderRadius: w(screen.radius),
           overflow: "hidden",
           background: "#000",
-          boxShadow: frameUrl
-            ? undefined
-            : `0 ${w(tile.width * SCREEN_SHADOW.offsetY)} ${w(tile.width * SCREEN_SHADOW.blur)} ${SCREEN_SHADOW.color}`,
+          boxShadow:
+            frameUrl || drawnBezel
+              ? undefined
+              : `0 ${w(tile.width * SCREEN_SHADOW.offsetY)} ${w(tile.width * SCREEN_SHADOW.blur)} ${SCREEN_SHADOW.color}`,
         }}
       >
         {captureUrl ? (
@@ -803,6 +831,20 @@ function DeviceView({
           alt=""
           draggable={false}
           style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+        />
+      ) : null}
+      {drawnBezel ? (
+        <div
+          style={{
+            position: "absolute",
+            left: pct(screen.left - frame.left + screen.width * 0.048, frame.width),
+            top: pct(screen.top - frame.top + screen.width * 0.048, frame.height),
+            width: pct(screen.width * 0.034, frame.width),
+            aspectRatio: "1",
+            borderRadius: "50%",
+            background: bezelStyle.camera,
+            border: "1px solid rgba(255,255,255,0.12)",
+          }}
         />
       ) : null}
     </div>

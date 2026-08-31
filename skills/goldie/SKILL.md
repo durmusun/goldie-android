@@ -1,240 +1,177 @@
 ---
-name: goldie
+name: goldie-android
 description: >-
-  Create App Store screenshots and app preview videos for an iOS app with the
-  goldie toolkit: explore the app on a simulator, author argent flows for its
-  key user flows, render framed screenshots and a plain preview video, and open a local
-  studio showing the finished store page. Use this whenever the user asks
-  for App Store or Google Play screenshots, store assets, marketing
-  screenshots, an app preview video, or mentions goldie, even if they only say
-  something like "make screenshots for the store" or "I need App Store assets
-  for this app".
-  Also use it for follow-ups on assets goldie already made: new headlines, a
-  different background or bezel, swapping or reordering a screenshot, or a
-  changed preview story. Run it from inside the mobile app's repo.
+  Create Google Play screenshots and listing assets for an Android app with
+  Goldie Android: explore the app on an emulator, author Argent flows, capture
+  real screens, render Android-native device frames and localized marketing
+  copy, generate the 1024x500 feature graphic, verify Play constraints, and
+  export the store package. Use whenever the user asks for Android or Google
+  Play screenshots, Play Store assets, a feature graphic, framed Android
+  marketing screenshots, or mentions Goldie Android. Do not use this fork for
+  iOS/App Store work; use the original Goldie project there.
 ---
 
-# goldie: App Store assets for the app in this repo
+# Goldie Android
 
-goldie replays argent YAML flows on an iOS simulator, captures raw screenshots
-and recordings, and turns them into upload-ready assets: screenshots get a
-device bezel, a background, and marketing copy; the preview video is the raw
-recordings joined as-is, since Apple requires app previews to be a plain
-screen recording with no framing or captions. A React studio shows the
-result as the real store page. Your job is everything goldie cannot do alone:
-pick the screens worth marketing, author the flows that reach them, write the
-copy, and drive the pipeline.
+Goldie Android turns deterministic captures from a real Android app into a
+Google Play package. It owns capture orchestration, Android framing,
+localized copy, the feature graphic, manifests, compliance checks, Studio,
+and ZIP export. The agent owns scene selection, replayable flows, truthful
+marketing copy, and final human visual review.
 
-The end state: 4 or 5 framed screenshots and the raw clips for a preview video,
-visible in the studio at http://localhost:4321, with the video rendering in
-the background.
+The required end state is:
 
-## Before anything: check for an existing goldie setup
+- 2–8 distinct phone screenshots, with 4 or more preferred;
+- 1080x1920 opaque PNG output unless the project requires another valid Play
+  size;
+- one opaque 1024x500 feature graphic;
+- `alt-text.json` and `listing-manifest.json`;
+- a successful `verify` run;
+- a visually reviewed Studio export.
 
-goldie keeps the whole outcome in files the user can re-prompt against. If
-the app repo already has a config, this is a follow-up, so read it first and
-skip to "Iterating on an existing setup" below rather than starting over:
+## Platform boundary
+
+This skill is Android-only.
+
+- Android / Google Play: Goldie Android.
+- iOS / App Store: upstream Goldie at
+  <https://github.com/kacperkapusciak/goldie>.
+
+Never silently route an iOS request through this fork.
+
+## Keep store automation outside the app repo
+
+Do not add Goldie config, Argent marketing flows, captures, rendered assets,
+ZIPs, or temporary files to the target application repository unless the user
+explicitly asks for that layout. Use a separate working directory and point
+the config's `appRoot` and `android.appPath` at the application.
+
+Example:
+
+```text
+<workspace>/
+├── app/                         target app; no Goldie output
+└── app-store-assets/            external Goldie workspace
+    ├── goldie.config.ts
+    ├── .argent/flows/
+    └── out/
+```
+
+## Resolve the CLI
+
+Prefer the built source checkout while the npm package is unpublished:
 
 ```bash
-ls goldie/goldie.config.ts .argent/flows/ 2>/dev/null; echo "GOLDIE_CONFIG=$GOLDIE_CONFIG"
+bun /absolute/path/to/goldie-android/src/cli.ts help
 ```
 
-Read `goldie/goldie.config.ts` in full and the flows it names. Together they
-are the source of truth for every visible choice: which screens, in what
-order, the headlines and subheads, the background and copy colors, the bezel,
-the store listing, and the preview story. Nothing lives only in your head or
-in the studio, so a user who says "make it darker" or "swap the search
-screenshot for settings" is asking for an edit to those files.
-
-## Step 0: Make sure goldie runs
-
-goldie is an npm package that bundles the CLI, the studio and a pinned argent
-driver. Nothing needs cloning; `npx` fetches it on first use:
+If the released binary is installed, use:
 
 ```bash
-npx -y goldie@0 help
+goldie-android help
 ```
 
-Every command below is `npx -y goldie@0 <cmd>`, referred to as `goldie`.
-It needs Node 20+ and `ffmpeg` on the PATH (`brew install ffmpeg`). If
-`$GOLDIE_ROOT` is set, the user is working from a source checkout; run
-`bun $GOLDIE_ROOT/src/cli.ts <cmd>` instead. All app-specific files live in
-the app repo.
+In the commands below, `goldie-android` means either invocation. Set
+`GOLDIE_CONFIG` on every command because shell state may not persist between
+tool calls.
 
-## Step 1: Gather app facts
+## 1. Inspect before changing anything
 
-From the app repo, find:
+Read any existing external `goldie.config.ts`, `goldie.design.json`, and every
+flow referenced by its scenes. Treat them as the source of truth for scene
+order, copy, theme, frame, listing metadata, and output.
 
-- **App name and bundle id.** Look in the Xcode project, `app.json` /
-  `app.config.*` (Expo), or `Info.plist`.
-- **A Release simulator build.** Look for the newest
-  `~/Library/Developer/Xcode/DerivedData/<App>-*/Build/Products/Release-iphonesimulator/<App>.app`.
-  If only Debug exists, build Release: a Debug build needs Metro and paints
-  LogBox banners into the captures, so it makes unusable marketing assets.
-  Use the repo's own build scripts if it has them.
+From the Android app, determine:
 
-## Step 2: Explore the app and choose the scenes
+- application ID;
+- newest release APK path;
+- supported locales;
+- first-run state and any required seed data;
+- exact visible text and accessibility IDs for stable flow selectors.
 
-Use argent MCP tools to see the app before deciding anything. Boot an iPhone
-16 Pro Max class simulator, install the Release build, launch it, and walk the
-main screens with `describe` and `screenshot`. Also check the app repo for
-existing recorded flows in `.argent/flows/`; they are the best source of
-working selectors and coordinates.
+Use Argent discovery against a running emulator. Do not invent selectors or
+tap coordinates from a screenshot. Prefer IDs, then stable text. A coordinate
+fallback needs a preceding `echo` and a hard destination assertion.
 
-Choose:
+## 2. Choose a Play story
 
-- **4 or 5 screenshot scenes.** Each is one screen that sells a feature: the
-  main list, a detail view, search, a distinctive feature screen. Prefer
-  screens with real-looking content.
-- **A 3 or 4 segment preview story.** One short user journey told in order,
-  for example: see the main screen, start a core action, complete it, see the
-  result. Each segment becomes one clip. The clips are joined with no
-  captions or framing, so each step must read on its own, and the total video
-  must land between 15 and 30 seconds.
+Choose at least two genuinely different screens. Four to six usually gives a
+stronger listing. Lead with the clearest product value, then cover distinct
+capabilities rather than repeating one screen with different headlines.
 
-While exploring, note the exact visible text labels and accessibility ids you
-will need as selectors, and normalized coordinates for anything with no label
-(icon-only tab bars are the usual case).
+Write short, truthful, benefit-led copy. Avoid install/download CTAs, ranking
+claims, unverifiable superlatives, prices, discounts, awards, and guarantees.
+Match the app's existing voice and locale.
 
-## Step 3: Author the config and flows
+## 3. Author config and flows
 
-The flows are argent flows and belong in the app's own flow store, next to any
-flow already recorded there. The config sits in a `goldie/` directory:
+Read `references/config.md` for the full schema and `references/flows.md` for
+Argent YAML. The minimum Android config includes:
 
-```
-<app-repo>/
-├── .argent/flows/
-│   ├── store-01-<scene>.yaml ...        one per screenshot scene
-│   └── store-preview-01-<segment>.yaml  one per preview segment
-└── goldie/goldie.config.ts
+```ts
+android: {
+  appPath: "/absolute/path/to/app-release.apk",
+  applicationId: "com.example.app",
+},
+devices: ["android-phone"],
+locales: ["en-US"],
 ```
 
-A scene names its flow the way `argent flow run <name>` does: `flow:
-"store-01-home"` runs `.argent/flows/store-01-home.yaml`. Prefix the marketing
-flows so they read apart from the app's test flows, and reuse an existing flow
-by name when one already reaches the screen. `flowsDir` in the config overrides
-the location; the default is `.argent/flows` under `appRoot`.
+Every screenshot scene needs localized `headline`, optional `subhead`, useful
+`altText`, and a replayable flow. Add localized `googlePlay.featureGraphic`
+copy when the store name/subtitle defaults are not sufficient.
 
-Read `references/config.md` for the config schema, an annotated example, and
-copywriting guidance. Read `references/flows.md` for the flow YAML vocabulary
-and the conventions that keep flows replayable. Write the headlines and
-subheads yourself in the app's voice; they are the marketing layer, so make
-them benefit-led and short.
+Flows must establish deterministic state, prove the intended destination,
+and finish with readiness. Run each flow directly with Argent before the full
+capture.
 
-Everything renders relative to the config file: output lands in
-`<app-repo>/goldie/out/`. Add `goldie/out/` to the app's `.gitignore`, and
-commit `goldie.config.ts` and the flows.
+## 4. Run the mandatory pipeline
 
-Because they are plain argent flows, each one is runnable on its own with
-`argent flow run store-01-home` from the app repo, which is the fastest way to
-check a flow before a full capture.
-
-## Step 4: Doctor, then capture
-
-Every goldie command reads the config path from the `GOLDIE_CONFIG` env var.
-Shell state does not persist between your Bash calls, so prefix every goldie
-command with it:
+Run in this order and stop on failure:
 
 ```bash
-GOLDIE_CONFIG=<app-repo>/goldie/goldie.config.ts npx -y goldie@0 doctor
+GOLDIE_CONFIG=/absolute/path/goldie.config.ts goldie-android doctor
+GOLDIE_CONFIG=/absolute/path/goldie.config.ts goldie-android capture
+GOLDIE_CONFIG=/absolute/path/goldie.config.ts goldie-android frame
+GOLDIE_CONFIG=/absolute/path/goldie.config.ts goldie-android preview
+GOLDIE_CONFIG=/absolute/path/goldie.config.ts goldie-android manifest
+GOLDIE_CONFIG=/absolute/path/goldie.config.ts goldie-android verify
 ```
 
-Fix everything doctor flags before capturing. The usual findings and their
-fixes are in the Gotchas section of goldie's README; the common ones are the
-argent video watermark flag, a screenshot scale override, and a Debug build.
+`preview` intentionally produces no uploaded video for Android; Google Play
+uses a YouTube URL. It remains in the shared sequence so automation and Studio
+export use one pipeline.
 
-Then capture and render the stills (skip the video for now, it takes minutes):
+`doctor` must confirm ADB, Argent, ffmpeg, release APK, emulator, flow paths,
+and watermark state. Never capture a Debug build with development overlays.
+
+## 5. Review in Studio
 
 ```bash
-GOLDIE_CONFIG=... npx -y goldie@0 capture
-GOLDIE_CONFIG=... npx -y goldie@0 frame
-GOLDIE_CONFIG=... npx -y goldie@0 manifest
+GOLDIE_CONFIG=/absolute/path/goldie.config.ts goldie-android studio --no-open
 ```
 
-`capture` replays every flow, including the preview segments, so the raw clips
-exist for the lazy video render later.
+Open <http://localhost:4321>. Review every tile at full size:
 
-### When a flow breaks
+- Android frame, punch-hole, and screen crop look native;
+- headline and subhead are not clipped;
+- app UI is sharp and in the intended locale;
+- screenshots are distinct and ordered well;
+- no debug, notification, account, or private data is visible;
+- feature graphic is legible and does not misuse device art.
 
-Flows replay with no LLM, so a wrong selector fails loudly. goldie prints the
-failed step and argent's reason. Fix it over argent MCP: `describe` the live
-screen to find the real label or id, correct the YAML, and re-run capture.
-Prefer `text:` and `id:` selectors; when only a coordinate works, add an
-`echo:` step above it explaining what it points at, so the next repair knows
-what to re-resolve.
+Studio export must end with `[done]`. A failed verification must not leave an
+old ZIP available.
 
-## Step 5: Open the studio, render the video lazily
+## 6. Report completion
 
-Start the studio in the background. It needs `GOLDIE_CONFIG` too, so it
-serves the app repo's `out/`:
+Report:
 
-```bash
-GOLDIE_CONFIG=... npx -y goldie@0 studio --no-open   # background task; serves http://localhost:4321
-```
+- exact output directory and ZIP path;
+- screenshot count, dimensions, and locale;
+- feature graphic dimensions;
+- whether `verify` passed;
+- every remaining warning;
+- any item that still needs human Play Console review.
 
-Tell the user it is up at http://localhost:4321. Then, also in the background,
-render the preview video so it appears on reload once done:
-
-```bash
-GOLDIE_CONFIG=... npx -y goldie@0 preview && GOLDIE_CONFIG=... npx -y goldie@0 manifest
-```
-
-If `preview` refuses because the total is outside 15 to 30 seconds, adjust
-segment pacing (`wait:` steps and `holdSeconds`) and re-capture only what
-changed.
-
-Finish with `GOLDIE_CONFIG=... npx -y goldie@0 verify` and report the result: which
-assets exist, where they are, and whether they pass Apple's rules. The
-studio's sidebar shows the same checks; a red row is a rule violation. The
-Design panel lets the user restyle backgrounds, layouts, bezels and fonts
-without you, and Export downloads an upload-ready zip.
-
-## Google Play
-
-The `android-phone` device key renders Play phone screenshots (1080 x 1920)
-from the same scenes: scenes and flows are shared across devices, and argent
-flows replay on Android when their selectors match. Add the config's
-`android: { appPath: "<apk>", applicationId: "<id>" }` block, start an
-emulator first (`emulator -avd <name>`; goldie does not boot one), then run
-the same capture/frame commands. Android tiles render screen-only (no bundled
-bezel art), and no preview video exists for Play - the promo video is a
-YouTube link - so `preview` skips the device.
-
-## Iterating on an existing setup
-
-A follow-up prompt maps onto a small change in the config or a flow, then
-the cheapest stage that reflects it. Do not re-explore the app or rewrite
-scenes the user did not mention. Report which file and field you changed so
-the next prompt can build on it.
-
-| The user asks for | Edit | Then run |
-|---|---|---|
-| Different headline, subhead or store copy | `scenes[].headline` / `subhead`, `store.*` | `frame`, `manifest` |
-| A new look: background, text colors, font, sizing | `theme.*`, or `scenes[].background` for one tile | `frame`, `manifest` |
-| A different bezel, or no bezel | `frame.variant`, `theme.screenOnly` | `frame`, `manifest` |
-| A varied strip: panorama opener, hero, tilted tiles, a breather | `theme.template`: a built-in key or a sequence of layout keys (see `references/config.md`) | `frame`, `manifest` |
-| A different layout for every tile, or one | `theme.layout`, or `scenes[].layout` for one tile | `frame`, `manifest` |
-| Two screens in one tile, or a two-tile panorama | `scenes[].layout: "duo"` / `"panorama-duo"` plus `secondScene`, or `"panorama"` | `frame`, `manifest` |
-| A badge, sticker or logo on the tiles | `theme.decorations` (all) or `scenes[].decorations` (one) | `frame`, `manifest` |
-| Dark mode captures | `appearance: "dark"` (and text colors to match) | `capture`, `frame`, `manifest` |
-| Reorder, drop or add a screenshot | `scenes[]`; a new scene needs a new flow in `.argent/flows` | `capture` (new flows), `frame`, `manifest` |
-| Show a different state on one screen | the scene's flow YAML | `capture`, `frame`, `manifest` |
-| Change the preview story or its pacing | preview `segments[]`, `holdSeconds`, flow `wait:` steps | `capture`, `preview`, `manifest` |
-| Another locale | `locales`, plus a `<locale>` key in every copy record | `capture`, `frame`, `preview`, `manifest` |
-
-`capture` replays every flow; to re-capture only what changed, keep the
-other scenes as they are and accept the extra minute, or delete only the
-stale files under `out/raw/` before running it. `frame` and `manifest` take
-seconds, so run them freely. The studio at http://localhost:4321 picks up
-changes on reload; start it again with `GOLDIE_CONFIG` if it is not running.
-
-The studio's Design panel writes to `goldie.design.json` next to the config,
-and the CLI's `--background` / `--frame` / `--font` / `--template` /
-`--layout` / `--screen-only` flags are one-run overrides; neither touches the
-config. If the user tried something there and wants to keep it, copy the
-value into `theme.background`, `frame.variant`, `theme.fontFamily`,
-`theme.template`, `theme.layout` or `scenes[].layout` so the next re-prompt
-starts from what they see. The
-current on-disk values are also in `goldie/out/web/store.json` under `design`,
-which is the fastest way to confirm what the studio is showing right now.
-
+Never call the work complete when `verify` reports `FAIL`.

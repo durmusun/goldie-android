@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop, android-play-store]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun test
+      - run: bun run check:ci
+      - run: bunx tsc --noEmit
+      - run: cd studio && bunx tsc --noEmit
+      - run: bun run build

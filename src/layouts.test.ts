@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { ANDROID_FRAME, androidBezelStyle } from "./frame.ts";
 import { compose, LAYOUT_KEYS, LAYOUTS, needsSecondCapture, resolveScenes } from "./layouts.ts";
 
 const tile = { width: 1320, height: 2868 };
@@ -49,6 +50,23 @@ describe("compose", () => {
     expect(screen.top).toBe(frame.top);
     expect(screen.width).toBe(frame.width);
     expect(screen.height).toBe(frame.height);
+  });
+
+  test("android geometry uses a thin Pixel-class bezel instead of iPhone proportions", () => {
+    const c = compose(LAYOUTS.classic, tile, theme, { geom: ANDROID_FRAME });
+    const device = c.devices[0]!;
+    const ring = device.screen.left - device.frame.left;
+
+    expect(device.screen.width / device.screen.height).toBeCloseTo(1080 / 2340, 5);
+    expect(ring / device.screen.width).toBeLessThan(0.03);
+    expect(device.screen.radius / device.screen.width).toBeLessThan(0.08);
+  });
+
+  test("every bezel selector maps to a distinct Android tint", () => {
+    const fills = ["17-pro-silver", "17-pro-blue", "17-pro-orange"].map(
+      (variant) => androidBezelStyle(variant).fill,
+    );
+    expect(new Set(fills).size).toBe(3);
   });
 
   test("duo and panorama-duo need a second capture, the rest do not", () => {

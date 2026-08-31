@@ -12,6 +12,7 @@ import type { CaptureManifest } from "./capture.ts";
 import {
   type Decoration,
   framePath,
+  isDarkBackground,
   isPreview,
   type LoadedConfig,
   resolvedScenes,
@@ -19,8 +20,15 @@ import {
 } from "./config.ts";
 import { exec, execOrThrow } from "./exec.ts";
 import { registerFonts } from "./fonts.ts";
-import { FRAME } from "./frame.ts";
+import { ANDROID_FRAME, type AndroidBezelStyle, androidBezelStyle, FRAME } from "./frame.ts";
 import { BADGE, type Composition, compose, SCREEN_SHADOW, TYPE } from "./layouts.ts";
+import {
+  expectedPlayScreenshotCount,
+  PLAY_STORE,
+  type PlayScreenshotProbe,
+  playCopyWarnings,
+  validatePlayScreenshotSet,
+} from "./play-store.ts";
 import { DEVICES, type DeviceKey, PREVIEW, SCREENSHOT_PIXEL_FORMAT } from "./specs.ts";
 
 async function readManifest(cfg: LoadedConfig, deviceKey: DeviceKey): Promise<CaptureManifest> {
@@ -28,7 +36,7 @@ async function readManifest(cfg: LoadedConfig, deviceKey: DeviceKey): Promise<Ca
   try {
     return JSON.parse(await readFile(file, "utf8"));
   } catch {
-    throw new Error(`No capture manifest at ${file}. Run: goldie capture`);
+    throw new Error(`No capture manifest at ${file}. Run: goldie-android capture`);
   }
 }
 
@@ -55,6 +63,9 @@ export async function renderScreenshots(cfg: LoadedConfig, deviceKey: DeviceKey,
   const customFrame = spec.platform === "android" ? cfg.android?.frame : undefined;
   const screenOnly = Boolean(cfg.theme.screenOnly || spec.screenOnly);
   const drawnBezel = !screenOnly && !customFrame && spec.drawnBezel === true;
+  const drawnBezelStyle = drawnBezel
+    ? androidBezelStyle("variant" in cfg.frame ? cfg.frame.variant : "17-pro-blue")
+    : undefined;
   const bezel = screenOnly
     ? null
     : customFrame
@@ -62,7 +73,7 @@ export async function renderScreenshots(cfg: LoadedConfig, deviceKey: DeviceKey,
       : drawnBezel
         ? null
         : await loadImage(framePath(cfg));
-  const geom = customFrame ?? FRAME;
+  const geom = customFrame ?? (spec.platform === "android" ? ANDROID_FRAME : FRAME);
   registerFonts();
 
   const tile = spec.screenshot;
@@ -115,7 +126,15 @@ export async function renderScreenshots(cfg: LoadedConfig, deviceKey: DeviceKey,
       for (const device of c.devices) {
         const sceneId = device.capture === "secondary" ? secondScene! : scene.id;
         const capture = await loadImage(findShot(sceneId).file);
-        drawDevice(ctx, device, capture, bezel, { width: c.designWidth }, drawnBezel);
+        drawDevice(
+          ctx,
+          device,
+          capture,
+          bezel,
+          { width: c.designWidth },
+          drawnBezel,
+          drawnBezelStyle,
+        );
       }
 
       const out: string[] = [];
@@ -130,6 +149,72 @@ export async function renderScreenshots(cfg: LoadedConfig, deviceKey: DeviceKey,
     }),
   );
   return files.flat();
+}
+
+/** Renders Google Play's required 1024x500 feature graphic for one locale. */
+export async function renderPlayFeatureGraphic(cfg: LoadedConfig, locale: string): Promise<string> {
+  const spec = PLAY_STORE.featureGraphic;
+  const canvas = createCanvas(spec.width, spec.height);
+  const ctx = canvas.getContext("2d");
+  registerFonts();
+
+  const feature = cfg.googlePlay?.featureGraphic;
+  const requestedBackground = feature?.background ?? cfg.theme.background;
+  const background = isTransparent(requestedBackground) ? "#FFFFFF" : requestedBackground;
+  ctx.fillStyle = paint(ctx, background, spec.width, spec.height);
+  ctx.fillRect(0, 0, spec.width, spec.height);
+
+  // Subtle code-native depth that stays inside Google's central safe area.
+  ctx.save();
+  ctx.globalAlpha = 0.12;
+  ctx.fillStyle = isDarkBackground(background) ? "#FFFFFF" : "#0E1B2A";
+  ctx.beginPath();
+  ctx.arc(900, 80, 230, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(95, 455, 180, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  const dark = isDarkBackground(background);
+  const title = feature?.title?.[locale] ?? cfg.store.name;
+  const subtitle = feature?.subtitle?.[locale] ?? cfg.store.subtitle[locale] ?? "";
+  const titleColor = feature?.titleColor ?? (dark ? "#FFFFFF" : "#0E1B2A");
+  const subtitleColor = feature?.subtitleColor ?? (dark ? "#D9E1EA" : "#445268");
+  const titleFont = `700 68px ${cfg.theme.fontFamily}`;
+  const subtitleFont = `400 34px ${cfg.theme.fontFamily}`;
+  const titleLines = wrapLines(ctx, title, titleFont, 0, 800);
+  const subtitleLines = subtitle ? wrapLines(ctx, subtitle, subtitleFont, 0, 800) : [];
+  const titleHeight = titleLines.length * 68 * 1.08;
+  const subtitleHeight = subtitleLines.length * 34 * 1.2;
+  const gap = subtitleLines.length ? 24 : 0;
+  let y = (spec.height - titleHeight - subtitleHeight - gap) / 2;
+  y = drawLines(ctx, {
+    lines: titleLines,
+    font: titleFont,
+    color: titleColor,
+    lineHeight: 1.08,
+    letterSpacing: 0,
+    x: spec.width / 2,
+    y,
+    align: "center",
+  });
+  if (subtitleLines.length) {
+    drawLines(ctx, {
+      lines: subtitleLines,
+      font: subtitleFont,
+      color: subtitleColor,
+      lineHeight: 1.2,
+      letterSpacing: 0,
+      x: spec.width / 2,
+      y: y + gap,
+      align: "center",
+    });
+  }
+
+  const outDir = join(cfg.outDir, "google-play", locale);
+  await mkdir(outDir, { recursive: true });
+  return writePng(canvas, outDir, "feature-graphic.png");
 }
 
 /**
@@ -217,6 +302,7 @@ function drawDevice(
   bezel: Image | null,
   tile: { width: number },
   drawnBezel = false,
+  drawnBezelStyle?: AndroidBezelStyle,
 ) {
   const { frame, screen } = device;
   ctx.save();
@@ -239,12 +325,12 @@ function drawDevice(
     ctx.shadowColor = SCREEN_SHADOW.color;
     ctx.shadowBlur = tile.width * SCREEN_SHADOW.blur;
     ctx.shadowOffsetY = tile.width * SCREEN_SHADOW.offsetY;
-    ctx.fillStyle = "#000";
+    ctx.fillStyle = drawnBezelStyle?.fill ?? "#050607";
     ctx.beginPath();
     ctx.roundRect(frame.left, frame.top, frame.width, frame.height, radius);
     ctx.fill();
     ctx.restore();
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.14)";
+    ctx.strokeStyle = drawnBezelStyle?.stroke ?? "rgba(255, 255, 255, 0.14)";
     ctx.lineWidth = Math.max(1, ring * 0.12);
     ctx.beginPath();
     ctx.roundRect(frame.left, frame.top, frame.width, frame.height, radius);
@@ -276,6 +362,23 @@ function drawDevice(
   );
   ctx.restore();
   if (bezel) ctx.drawImage(bezel, frame.left, frame.top, frame.width, frame.height);
+  if (drawnBezel) {
+    // A small upper-left punch-hole is the strongest platform cue on modern
+    // Android phones. Keep it relative to the screen so every layout and
+    // scale uses the same geometry.
+    const cameraX = screen.left + screen.width * 0.065;
+    const cameraY = screen.top + screen.width * 0.065;
+    const cameraRadius = screen.width * 0.017;
+    ctx.save();
+    ctx.fillStyle = drawnBezelStyle?.camera ?? "#050607";
+    ctx.beginPath();
+    ctx.arc(cameraX, cameraY, cameraRadius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
+    ctx.lineWidth = Math.max(1, cameraRadius * 0.12);
+    ctx.stroke();
+    ctx.restore();
+  }
   ctx.restore();
 }
 
@@ -490,7 +593,7 @@ export async function renderPreview(cfg: LoadedConfig, deviceKey: DeviceKey, loc
   }
   const manifest = await readManifest(cfg, deviceKey);
   if (!manifest.preview)
-    throw new Error("No preview clips in the capture manifest. Run: goldie capture");
+    throw new Error("No preview clips in the capture manifest. Run: goldie-android capture");
 
   const clips = scene.segments.map((segment) => {
     const clip = manifest.preview!.clips.find((c) => c.segmentId === segment.id);
@@ -566,7 +669,30 @@ function pick(map: Record<string, string>, locale: string, sceneId: string, fiel
   return value;
 }
 
-/** Compares finished assets against the Apple spec table and prints a report. */
+async function imageProbe(
+  file: string,
+): Promise<{ width: number; height: number; alpha: boolean } | null> {
+  try {
+    const r = await execOrThrow("sips", [
+      "-g",
+      "pixelWidth",
+      "-g",
+      "pixelHeight",
+      "-g",
+      "hasAlpha",
+      file,
+    ]);
+    return {
+      width: Number(r.stdout.match(/pixelWidth:\s*(\d+)/)?.[1]),
+      height: Number(r.stdout.match(/pixelHeight:\s*(\d+)/)?.[1]),
+      alpha: /hasAlpha:\s*yes/.test(r.stdout),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Compares finished assets against the target store specification. */
 export async function verify(
   cfg: LoadedConfig,
   deviceKey: DeviceKey,
@@ -576,8 +702,16 @@ export async function verify(
   let ok = true;
 
   const shotDir = join(cfg.outDir, "screenshots", spec.label, locale);
-  const shots = await exec("sh", ["-c", `ls ${shotDir}/*.png 2>/dev/null`], { quiet: true });
-  for (const file of shots.stdout.split("\n").filter(Boolean)) {
+  const shotNames = (await readdir(shotDir).catch(() => [] as string[]))
+    .filter((name) => name.endsWith(".png"))
+    .sort();
+  const playProbes: PlayScreenshotProbe[] = [];
+  if (shotNames.length === 0) {
+    ok = false;
+    console.log(`  FAIL screenshots  none found in ${shotDir}`);
+  }
+  for (const name of shotNames) {
+    const file = join(shotDir, name);
     const r = await execOrThrow("sips", [
       "-g",
       "pixelWidth",
@@ -590,15 +724,48 @@ export async function verify(
     const width = Number(r.stdout.match(/pixelWidth:\s*(\d+)/)?.[1]);
     const height = Number(r.stdout.match(/pixelHeight:\s*(\d+)/)?.[1]);
     const alpha = /hasAlpha:\s*yes/.test(r.stdout);
-    // A transparent theme background keeps its alpha on purpose.
-    const alphaOk = !alpha || isTransparent(cfg.theme.background);
-    const good = width === spec.screenshot.width && height === spec.screenshot.height && alphaOk;
+    const good = width === spec.screenshot.width && height === spec.screenshot.height && !alpha;
     ok &&= good;
     console.log(
       `  ${good ? "ok  " : "FAIL"} ${basename(file)}  ${width}x${height}` +
-        `${alpha ? (alphaOk ? "  transparent (not for upload)" : "  alpha channel present") : ""}` +
+        `${alpha ? "  alpha channel present" : ""}` +
         `${good ? "" : `  expected ${spec.screenshot.width}x${spec.screenshot.height}, no alpha`}`,
     );
+    if (spec.platform === "android") {
+      playProbes.push({ name, format: "png", width, height, alpha });
+    }
+  }
+
+  if (spec.platform === "android") {
+    const issues = validatePlayScreenshotSet(playProbes, expectedPlayScreenshotCount(cfg));
+    for (const issue of [...issues, ...playCopyWarnings(cfg, locale)]) {
+      if (issue.level === "error") ok = false;
+      console.log(`  ${issue.level === "error" ? "FAIL" : "warn"} ${issue.code}  ${issue.message}`);
+    }
+
+    const root = join(cfg.outDir, "google-play", locale);
+    const featureFile = join(root, "feature-graphic.png");
+    const feature = await imageProbe(featureFile);
+    const featureGood =
+      feature !== null &&
+      feature.width === PLAY_STORE.featureGraphic.width &&
+      feature.height === PLAY_STORE.featureGraphic.height &&
+      !feature.alpha;
+    ok &&= featureGood;
+    console.log(
+      `  ${featureGood ? "ok  " : "FAIL"} feature-graphic.png  ${
+        feature ? `${feature.width}x${feature.height}${feature.alpha ? " alpha" : ""}` : "missing"
+      }`,
+    );
+
+    for (const required of ["alt-text.json", "listing-manifest.json"]) {
+      const exists = await stat(join(root, required)).then(
+        () => true,
+        () => false,
+      );
+      ok &&= exists;
+      console.log(`  ${exists ? "ok  " : "FAIL"} ${required}${exists ? "" : "  missing"}`);
+    }
   }
 
   // A null preview spec means no video pipeline; screenshots are the whole story.

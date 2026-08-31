@@ -1,113 +1,178 @@
-# Goldie: App Store screenshot generator for coding agents (and humans)
+# Goldie Android
 
-goldie makes App Store screenshots and app preview videos for an iOS app.
-[argent](https://github.com/software-mansion/argent) replays flows on a
-simulator; goldie frames the captures with a device bezel, background and
-headline, joins the clips into a preview video, and checks the result against
-Apple's upload rules.
+Google Play screenshot and listing-asset automation for coding agents and
+humans. Goldie Android drives a real Android app through
+[Argent](https://github.com/software-mansion/argent), captures deterministic
+screens, frames them with an Android-native bezel, generates localized
+marketing artwork, validates the result, and exports an upload-ready package.
 
-goldie is framework agnostic. It drives the app through the simulator, so it
-works the same for SwiftUI, UIKit, Flutter, React Native and Kotlin
-Multiplatform apps.
+> [!IMPORTANT]
+> Goldie Android is an independent, unofficial Android-focused fork of
+> [Kacper Kapuściak's Goldie](https://github.com/kacperkapusciak/goldie).
+> For iOS and App Store assets, use the original Goldie project.
 
-## Install
+## What it produces
 
-You need macOS with iOS simulators, Node 20 or newer and ffmpeg.
+For every configured locale:
 
-Install the CLI:
-
-```
-npm i -g goldie
-```
-
-Add the skill to your coding agent:
-
-```
-npx skills add kacperkapusciak/goldie            # Cursor, Codex, any agent
-
-/plugin marketplace add kacperkapusciak/goldie   # Claude Code
-/plugin install goldie@goldie
+```text
+out/google-play/<locale>/
+├── phone/                  1080x1920 RGB PNG screenshots
+├── feature-graphic.png     1024x500 RGB PNG
+├── alt-text.json           accessibility copy by filename
+└── listing-manifest.json   package metadata and compliance findings
 ```
 
-The skill works with any agent that supports the skills format.
+The verifier enforces the Google Play requirements it can determine
+mechanically:
 
-## Use with a coding agent
+- 2–8 phone screenshots;
+- PNG/JPEG-compatible, opaque output;
+- dimensions between 320 and 3840 pixels;
+- no more than a 2:1 long-to-short aspect ratio;
+- exactly one opaque 1024x500 feature graphic;
+- expected render count, alt text, and listing metadata.
 
-Ask from your app repo:
+It recommends 1080x1920 screenshots and warns below four screenshots, for
+repeated early scenes, and for common calls-to-action or risky promotional
+claims. A human must still review visual quality and misleading-content risk.
 
+## Requirements
+
+- macOS;
+- Node.js 20.12 or newer;
+- [Bun](https://bun.sh);
+- Android SDK tools (`adb` and a running emulator);
+- `ffmpeg` and `ffprobe`;
+- a release APK;
+- Argent 0.22 or newer.
+
+Goldie Android deliberately does not boot an arbitrary AVD. Start one first:
+
+```bash
+emulator -list-avds
+emulator -avd <name>
 ```
-create App Store screenshots using goldie
+
+## Install from source
+
+The first public release is source-first; no npm package has been published
+yet.
+
+```bash
+git clone https://github.com/durmusun/goldie-android.git
+cd goldie-android
+bun install --frozen-lockfile
+bun run build
+./dist/cli.js help
 ```
 
-The agent explores the app, writes the flows and config, and
-opens the studio. Follow-ups such as `use a dark background` edit the same
-files. 
+The intended package and CLI name is `goldie-android`. When working from the
+source checkout, the examples below can be run as
+`bun src/cli.ts <command>` or `./dist/cli.js <command>`.
 
-## Use by hand
+To install the included agent skill directly from GitHub:
 
-Copy `goldie.config.example.ts` to `goldie.config.ts`, point its scenes at
-argent flows in `.argent/flows`, then:
-
-```
-goldie doctor     Check tools, simulators and flows
-goldie all        Capture, frame, render the preview and verify
-goldie studio     Preview and tweak the assets in the browser
+```bash
+npx skills add durmusun/goldie-android
 ```
 
-Output lands in `out/`: 6.9" screenshots (1320 x 2868) and a 886 x 1920
-H.264 preview, per locale. Previews must run 15 to 30 seconds.
+## Configure
 
-## Google Play
+Copy `goldie.config.example.ts` to a project-external working directory and
+set `GOLDIE_CONFIG` to its absolute path. Keeping configs, Argent flows, raw
+captures, and store output outside the target app repository prevents
+marketing automation from polluting the app's source tree.
 
-Add the `android-phone` device key to render Google Play phone screenshots
-(1080 x 1920) from the same scenes. Argent flows replay on Android too, so
-the scene flows are shared; a flow works on both platforms when its selectors
-match. The captures come from a running Android emulator - goldie does not
-boot one, so start it first (`emulator -avd <name>`, list with
-`emulator -list-avds`) and add the build to the config:
+The essential Android fields are:
 
 ```ts
-devices: ["iphone-6.9", "android-phone"],
 android: {
-  appPath: "/path/to/app-release.apk",
+  appPath: "/absolute/path/to/app-release.apk",
   applicationId: "com.example.app",
 },
+devices: ["android-phone"],
+locales: ["en-US"],
 ```
 
-Android tiles render as bare screens with the drop shadow (`screenOnly`
-rendering): no Pixel bezel art is bundled, to stay clear of device-art
-licensing. No preview video is rendered for Play either - the Play Store's
-promo video is a YouTube link, not an upload - so `preview` and `all` simply
-skip it for this device.
+Scenes point to replayable Argent YAML flows. See
+[`goldie.config.example.ts`](goldie.config.example.ts) and the
+[`skills/goldie/references`](skills/goldie/references) documentation for the
+full schema and flow conventions.
 
-## Design
+## Run
 
-https://github.com/user-attachments/assets/d6171a90-8fc1-437b-a574-5a8547068a3c
+Always run the complete validation sequence before treating an export as
+finished:
 
-The studio switches backgrounds, templates, bezel, fonts and per-tile copy,
-and saves to `goldie.design.json` so the CLI renders the same thing. The
-config also takes:
+```bash
+GOLDIE_CONFIG=/absolute/path/goldie.config.ts ./dist/cli.js doctor
+GOLDIE_CONFIG=/absolute/path/goldie.config.ts ./dist/cli.js capture
+GOLDIE_CONFIG=/absolute/path/goldie.config.ts ./dist/cli.js frame
+GOLDIE_CONFIG=/absolute/path/goldie.config.ts ./dist/cli.js preview
+GOLDIE_CONFIG=/absolute/path/goldie.config.ts ./dist/cli.js manifest
+GOLDIE_CONFIG=/absolute/path/goldie.config.ts ./dist/cli.js verify
+```
 
-- `frame`: `17-pro-blue`, `17-pro-silver`, `17-pro-orange`, or a custom
-  bezel image; `theme.screenOnly: true` drops it.
-- `theme.template`: `editorial`, `showcase`, `magazine`, `storyboard`,
-  `dynamic`, or your own layout sequence from `classic`, `copy-below`, `hero`,
-  `offset`, `tilt`, `tilt-right`, `duo`, `duo-tilt`, `panorama`,
-  `panorama-duo`, `minimal`.
-- `theme.fontFamily`: a CSS font stack. Merriweather, DM Mono, Lato, DM Sans
-  and Montserrat are bundled.
-- `decorations`: badges or images layered behind the device.
+Or run the whole pipeline:
 
-## Remarks
+```bash
+GOLDIE_CONFIG=/absolute/path/goldie.config.ts ./dist/cli.js all
+```
 
-- Use a Release build; Debug builds paint LogBox banners into captures.
-- Flows fail when the app changes. Ask coding agent to repair them, or re-record
-  with argent.
+Open the visual editor with:
 
-## Sponsored by Software Mansion
+```bash
+GOLDIE_CONFIG=/absolute/path/goldie.config.ts ./dist/cli.js studio
+```
 
-goldie is sponsored by [Software Mansion](https://swmansion.com), the
-software agency that created [Argent](https://github.com/software-mansion/argent).
-You can [hire Software Mansion](https://swmansion.com/contact) for your next project.
+Studio runs at <http://localhost:4321>. Its export action renders the selected
+design, generates the Google Play package, runs verification, and creates a
+ZIP only when the required checks pass.
 
-<a href="https://swmansion.com"><img src="assets/software-mansion-logo-positive-s-left-top@1x.png" alt="Software Mansion" width="200" /></a>
+## Android rendering
+
+The default Android frame is code-native and uses Pixel-class geometry with a
+punch-hole camera. Silver, Deep Blue, and Cosmic Orange bezel tints are
+available in both the CLI and Studio. Custom Android frame art and screen
+cutout geometry can be supplied through `android.frame`; external device art
+is never bundled automatically.
+
+Google Play accepts a YouTube URL rather than an uploaded app-preview video,
+so Android devices skip the video render while retaining the shared command
+pipeline.
+
+## Development
+
+```bash
+bun install --frozen-lockfile
+bun test
+bun run check:ci
+bunx tsc --noEmit
+(cd studio && bunx tsc --noEmit)
+bun run build
+```
+
+Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) before opening a pull request.
+
+## Project lineage
+
+- **Original Goldie:** Kacper Kapuściak and upstream contributors.
+- **Initial Android capture support:** Craig de Gouveia (`HughZurname`).
+- **Goldie Android Play packaging, compliance, Android framing, and Studio
+  integration:** Durmuş Ün.
+
+Commit history is preserved so every contribution remains attributable. This
+fork is not endorsed by Kacper Kapuściak, Craig de Gouveia, Software Mansion,
+or the upstream Goldie project.
+
+## License and third-party notices
+
+The software is distributed under the MIT License; retain the copyright and
+permission notice in [`LICENSE`](LICENSE).
+
+Bundled iPhone bezel images inherited from upstream are not MIT-licensed.
+They are derived from Kelly Hu's device frames under CC BY 4.0; see
+[`assets/ATTRIBUTION.md`](assets/ATTRIBUTION.md). Bundled fonts are licensed
+under the SIL Open Font License 1.1; see
+[`assets/fonts/OFL.txt`](assets/fonts/OFL.txt).

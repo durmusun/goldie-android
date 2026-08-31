@@ -40,11 +40,7 @@ export type StoreManifest = {
     price: string;
     description: Record<string, string>;
   };
-  /**
-   * null simulatorName / preview mark an android device. The studio's strip
-   * view only fully renders iOS devices today; multi-device UI is upstream
-   * (goldie PR #1).
-   */
+  /** null simulatorName / preview mark an Android device. */
   devices: Array<{
     key: DeviceKey;
     label: string;
@@ -55,6 +51,9 @@ export type StoreManifest = {
   locales: string[];
   /** Keyed by device key, then locale. */
   assets: Record<string, Record<string, LocaleAssets>>;
+  googlePlay: {
+    locales: Record<string, { featureGraphic: string; altText: string; listingManifest: string }>;
+  } | null;
   /** Everything the studio needs to composite scenes in the browser. */
   design: {
     theme: Theme;
@@ -92,7 +91,7 @@ export type StoreManifest = {
       sceneId: string;
       segments: Array<{ id: string }>;
     } | null;
-    /** Raw capture urls per device key; a device is absent until `goldie capture` ran. */
+    /** Raw capture urls per device key; a device is absent until `goldie-android capture` ran. */
     captures: Record<
       string,
       {
@@ -129,6 +128,7 @@ export async function writeManifest(cfg: LoadedConfig): Promise<string> {
   await link(join(cfg.outDir, "screenshots"), join(webDir, "screenshots"));
   await link(join(cfg.outDir, "previews"), join(webDir, "previews"));
   await link(join(cfg.outDir, "raw"), join(webDir, "raw"));
+  await link(join(cfg.outDir, "google-play"), join(webDir, "google-play"));
 
   // Bezel art the browser composites with; every bundled variant so switching
   // frames never waits on a server.
@@ -217,6 +217,20 @@ export async function writeManifest(cfg: LoadedConfig): Promise<string> {
     })),
     locales: cfg.locales,
     assets,
+    googlePlay: cfg.devices.includes("android-phone")
+      ? {
+          locales: Object.fromEntries(
+            cfg.locales.map((locale) => [
+              locale,
+              {
+                featureGraphic: `google-play/${locale}/feature-graphic.png`,
+                altText: `google-play/${locale}/alt-text.json`,
+                listingManifest: `google-play/${locale}/listing-manifest.json`,
+              },
+            ]),
+          ),
+        }
+      : null,
     design: {
       theme: cfg.theme,
       frameVariant: "variant" in cfg.frame ? cfg.frame.variant : null,

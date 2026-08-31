@@ -17,8 +17,8 @@ import { exec } from "./exec.ts";
  * atomically so a half-written JSON never reaches the CLI.
  *
  * POST /api/export - renders the final assets from the raw captures with the
- * chosen background and frame (goldie frame + preview + manifest), zips
- * out/screenshots and out/previews, and streams the CLI log as plain text.
+ * chosen background and frame (goldie frame + preview + manifest + verify),
+ * zips store-specific outputs, and streams the CLI log as plain text.
  * Body: { background?, frame?, font?, template?, layout?, screenOnly? };
  * per-scene layouts ride on goldie.design.json, which the CLI reads on its
  * own. The response ends with "[done]" on success or "[failed]" otherwise; on
@@ -132,7 +132,7 @@ export function exportHandler({ paths, cli }: StudioApi): (sub: string) => Handl
       res.writeHead(200, {
         "Content-Type": "application/zip",
         "Content-Length": statSync(paths.exportZip).size,
-        "Content-Disposition": 'attachment; filename="appstore-assets.zip"',
+        "Content-Disposition": 'attachment; filename="store-assets.zip"',
         "Cache-Control": "no-store",
       });
       createReadStream(paths.exportZip).pipe(res);
@@ -176,20 +176,21 @@ export function exportHandler({ paths, cli }: StudioApi): (sub: string) => Handl
 
       const [bin, ...prefix] = cli;
       try {
-        for (const command of ["frame", "preview", "manifest"]) {
+        // Never leave a previously valid archive downloadable after a later
+        // render or compliance failure.
+        await rm(paths.exportZip, { force: true });
+        for (const command of ["frame", "preview", "manifest", "verify"]) {
           res.write(`$ goldie ${command}\n`);
           await stream(bin!, [...prefix, command, ...flags], paths.configDir, res, {
             GOLDIE_CONFIG: paths.configPath,
           });
         }
-        res.write("$ zip screenshots + previews\n");
-        await rm(paths.exportZip, { force: true });
-        await stream(
-          "zip",
-          ["-r", "-q", paths.exportZip, "screenshots", "previews"],
-          paths.outDir,
-          res,
+        const exportDirs = ["screenshots", "previews", "google-play"].filter((name) =>
+          existsSync(join(paths.outDir, name)),
         );
+        if (exportDirs.length === 0) throw new Error("No rendered store assets to export.");
+        res.write(`$ zip ${exportDirs.join(" + ")}\n`);
+        await stream("zip", ["-r", "-q", paths.exportZip, ...exportDirs], paths.outDir, res);
         res.write("[done]\n");
       } catch (err) {
         res.write(`[failed] ${err instanceof Error ? err.message : err}\n`);
@@ -296,7 +297,7 @@ export function serveStudio(api: StudioApi, port = 4321): Promise<string> {
     if (file) return sendFile(req, res, file);
     if (path === "/store.json") {
       res.statusCode = 404;
-      res.end("No out/web/store.json. Run: goldie manifest");
+      res.end("No out/web/store.json. Run: goldie-android manifest");
       return;
     }
     sendFile(req, res, join(STUDIO_DIST, "index.html"));

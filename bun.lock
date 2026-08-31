@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "goldie",
+      "name": "goldie-android",
       "dependencies": {
         "@napi-rs/canvas": "^1.0.8",
         "@swmansion/argent": "^0.22.0",

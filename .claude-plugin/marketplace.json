@@ -1,11 +1,11 @@
 {
-  "name": "goldie",
-  "owner": { "name": "Kacper Kapuściak" },
+  "name": "goldie-android",
+  "owner": { "name": "Durmuş Ün" },
   "plugins": [
     {
-      "name": "goldie",
+      "name": "goldie-android",
       "source": "./",
-      "description": "App Store screenshots and app preview videos for an iOS app, driven by argent flows on a simulator.",
+      "description": "Google Play screenshots, feature graphics, listing packages, and compliance checks for Android apps.",
       "category": "productivity"
     }
   ]

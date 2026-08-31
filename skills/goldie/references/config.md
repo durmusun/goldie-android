@@ -62,6 +62,15 @@ const config: GoldieConfig = {
     description: { "en-US": "Two or three short paragraphs, store voice." },
   },
 
+  // Generated automatically for Android; omit to use the store name,
+  // subtitle and theme background.
+  googlePlay: {
+    featureGraphic: {
+      title: { "en-US": "AppName" },
+      subtitle: { "en-US": "A short benefit-led promise" },
+    },
+  },
+
   // flowsDir: "../.argent/flows" by default, resolved from appRoot. Every
   // scene names a flow there, the way `argent flow run <name>` does.
 
@@ -74,6 +83,7 @@ const config: GoldieConfig = {
       flow: "store-01-issues",
       headline: { "en-US": "Every issue, one list" },
       subhead: { "en-US": "Grouped by status, sorted the way your team works." },
+      altText: { "en-US": "The issue list grouped by status." },
       // background: "..."     optional per-scene override
       // layout: "hero",        optional per-scene layout
       // secondScene: "detail", the second screen for duo / panorama-duo
@@ -171,6 +181,9 @@ applies to every tile, `scenes[].decorations` to one; both stack.
 |---|---|---|
 | 6.9" screenshots | 1320x2868 PNG, no alpha | `out/screenshots/6.9/<locale>/` |
 | 6.9" preview | 886x1920 H.264 30fps AAC, 15 to 30 s | `out/previews/6.9/<locale>/` |
+| Play phone screenshots | 1080x1920 RGB PNG | `out/google-play/<locale>/phone/` |
+| Play feature graphic | 1024x500 RGB PNG | `out/google-play/<locale>/feature-graphic.png` |
+| Play metadata | JSON | `out/google-play/<locale>/{alt-text,listing-manifest}.json` |
 
-`goldie verify` checks the finished files against these with `sips` and
+`goldie-android verify` checks the finished files against these with `sips` and
 `ffprobe` and fails on any mismatch.

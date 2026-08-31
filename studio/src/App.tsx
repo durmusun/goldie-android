@@ -207,6 +207,7 @@ function Loaded({ manifest, saved }: { manifest: StoreManifest; saved: SavedDesi
                 locale={locale}
                 background={background}
                 frameUrl={frameUrl}
+                frameVariant={frame}
                 fontFamily={fontFamily}
                 copy={copy}
                 onCopy={setSceneCopy}

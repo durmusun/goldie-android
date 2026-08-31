@@ -1,10 +1,10 @@
 {
-  "name": "goldie",
-  "version": "0.2.0",
-  "description": "App Store screenshots and app preview videos for an iOS app, driven by argent flows on a simulator.",
-  "author": { "name": "Kacper Kapuściak" },
-  "homepage": "https://github.com/kacperkapusciak/goldie",
-  "repository": "https://github.com/kacperkapusciak/goldie",
+  "name": "goldie-android",
+  "version": "0.1.0",
+  "description": "Google Play screenshots, feature graphics, listing packages, and compliance checks for Android apps.",
+  "author": { "name": "Durmuş Ün" },
+  "homepage": "https://github.com/durmusun/goldie-android",
+  "repository": "https://github.com/durmusun/goldie-android",
   "license": "MIT",
-  "keywords": ["app-store", "screenshots", "ios", "argent"]
+  "keywords": ["google-play", "android", "screenshots", "feature-graphic", "argent"]
 }

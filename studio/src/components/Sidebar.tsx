@@ -1,4 +1,4 @@
-import { MoonIcon, SunIcon } from "lucide-react";
+import { ExternalLinkIcon, MoonIcon, SunIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -59,6 +59,7 @@ export function Sidebar({
   onLayout: (v: string) => void;
   onScreenOnly: (v: boolean) => void;
 }) {
+  const playAssets = manifest.googlePlay?.locales[locale];
   return (
     <aside className="flex w-[300px] shrink-0 flex-col overflow-hidden rounded-2xl border border-sidebar-border bg-sidebar text-sidebar-foreground">
       <header className="flex h-14 shrink-0 items-center justify-between pr-3 pl-5">
@@ -116,6 +117,26 @@ export function Sidebar({
       </div>
 
       <footer className="shrink-0 bg-sidebar p-4">
+        {playAssets ? (
+          <div className="mb-3 flex items-center gap-3 text-[11px] text-muted-foreground">
+            <a
+              className="inline-flex items-center gap-1 hover:text-foreground"
+              href={`/${playAssets.featureGraphic}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Feature graphic <ExternalLinkIcon className="size-3" />
+            </a>
+            <a
+              className="inline-flex items-center gap-1 hover:text-foreground"
+              href={`/${playAssets.listingManifest}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Play manifest <ExternalLinkIcon className="size-3" />
+            </a>
+          </div>
+        ) : null}
         <ExportPanel
           background={background}
           frame={frame}

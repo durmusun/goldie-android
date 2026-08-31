@@ -1,4 +1,4 @@
-/** Mirrors the StoreManifest that `goldie manifest` writes to out/store.json. */
+/** Mirrors the StoreManifest that `goldie-android manifest` writes to out/store.json. */
 
 export type Theme = {
   background: string;
@@ -25,7 +25,7 @@ export type Decoration =
 export type LayoutEntry = { key: string; label: string; description: string; span: number };
 export type TemplateEntry = { key: string; label: string; description: string; sequence: string[] };
 
-/** null simulatorName / preview mark an android device; the strip fully renders only iOS today (multi-device UI is PR #1). */
+/** null simulatorName / preview mark an Android device. */
 export type DeviceEntry = {
   key: string;
   label: string;
@@ -76,7 +76,7 @@ export type Design = {
     sceneId: string;
     segments: Array<{ id: string }>;
   } | null;
-  /** Raw capture urls per device key; a device is absent until `goldie capture` ran. */
+  /** Raw capture urls per device key; a device is absent until `goldie-android capture` ran. */
   captures: Record<string, DeviceCaptures>;
 };
 
@@ -95,6 +95,9 @@ export type StoreManifest = {
   };
   devices: DeviceEntry[];
   locales: string[];
+  googlePlay: {
+    locales: Record<string, { featureGraphic: string; altText: string; listingManifest: string }>;
+  } | null;
   design: Design;
 };
 
@@ -102,12 +105,14 @@ export async function loadManifest(): Promise<StoreManifest> {
   const res = await fetch("/store.json", { cache: "no-store" });
   if (!res.ok) {
     throw new Error(
-      "No out/store.json. Generate the assets first:  goldie all  (or  goldie manifest)",
+      "No out/store.json. Generate the assets first:  goldie-android all  (or  goldie-android manifest)",
     );
   }
   const manifest: StoreManifest = await res.json();
   if (!manifest.design?.fonts || !manifest.design.layouts) {
-    throw new Error("out/store.json predates browser-side composition. Re-run: goldie manifest");
+    throw new Error(
+      "out/store.json predates browser-side composition. Re-run: goldie-android manifest",
+    );
   }
 
   // Raw captures keep their names across a re-capture, so the manifest's

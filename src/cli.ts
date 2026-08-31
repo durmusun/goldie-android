@@ -15,23 +15,25 @@ import { doctor } from "./doctor.ts";
 import { FONT_KEYS, fontStack } from "./fonts.ts";
 import { LAYOUT_KEYS, type LayoutKey, TEMPLATE_KEYS } from "./layouts.ts";
 import { writeManifest } from "./manifest.ts";
-import { renderPreview, renderScreenshots, verify } from "./render.ts";
+import { writePlayStorePackage } from "./play-store.ts";
+import { renderPlayFeatureGraphic, renderPreview, renderScreenshots, verify } from "./render.ts";
 import { FlowFailure, repairBrief } from "./repair.ts";
 import type { DeviceKey } from "./specs.ts";
 import { openInBrowser, serveStudio, studioPaths } from "./studio-server.ts";
 
 const USAGE = `
-goldie - App Store screenshots and previews, driven by argent
+goldie-android - Google Play assets, driven by argent
 
-  goldie doctor     Check the toolchain, simulators, flags and flows
-  goldie capture    Replay every scene flow and save raw captures
-  goldie frame      Composite raw screenshots into framed, captioned PNGs
-  goldie preview    Join the raw clips into the app preview video (iOS; Play takes no videos)
-  goldie verify     Check finished assets against the store spec tables
-  goldie manifest   Write out/store.json for the studio app
-  goldie studio     Serve the studio at http://localhost:4321 (--port <n>, --no-open)
-  goldie all        capture -> frame -> preview -> manifest -> verify
-  goldie version    Print the installed goldie version (-v, --version)
+  goldie-android doctor     Check the toolchain, emulators, flags and flows
+  goldie-android capture    Replay every scene flow and save raw captures
+  goldie-android frame      Composite raw screenshots into framed, captioned PNGs
+  goldie-android play       Build the Google Play feature graphic and upload-ready package
+  goldie-android preview    Keep the shared pipeline consistent (Play takes no uploaded videos)
+  goldie-android verify     Check finished assets against the store spec tables
+  goldie-android manifest   Write out/store.json for the studio app
+  goldie-android studio     Serve the studio at http://localhost:4321 (--port <n>, --no-open)
+  goldie-android all        capture -> frame -> preview -> manifest -> verify
+  goldie-android version    Print the installed version (-v, --version)
 
 Options
   --config <path>   Config file (default ./goldie.config.ts)
@@ -91,6 +93,11 @@ async function main() {
 
     case "frame":
       for (const d of devices) for (const l of locales) await renderScreenshots(cfg, d, l);
+      await runPlayAssets(cfg, devices, locales);
+      return 0;
+
+    case "play":
+      await runPlayAssets(cfg, devices, locales);
       return 0;
 
     case "preview":
@@ -127,6 +134,7 @@ async function main() {
           await renderPreview(cfg, d, l);
         }
       }
+      await runPlayAssets(cfg, devices, locales);
       await writeManifest(cfg);
       console.log("\nverify");
       return (await verifyAll(cfg, devices, locales)) ? 0 : 1;
@@ -161,6 +169,16 @@ async function verifyAll(cfg: LoadedConfig, devices: DeviceKey[], locales: strin
   let ok = true;
   for (const d of devices) for (const l of locales) ok = (await verify(cfg, d, l)) && ok;
   return ok;
+}
+
+async function runPlayAssets(cfg: LoadedConfig, devices: DeviceKey[], locales: string[]) {
+  if (!devices.includes("android-phone")) return;
+  for (const locale of locales) {
+    console.log(`  feature graphic ${locale}`);
+    await renderPlayFeatureGraphic(cfg, locale);
+    console.log(`  Play package ${locale}`);
+    await writePlayStorePackage(cfg, locale);
+  }
 }
 
 main()

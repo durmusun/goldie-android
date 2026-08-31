@@ -28,6 +28,8 @@ export type ScreenshotScene = {
   /** Headline per locale. */
   headline: Record<Locale, string>;
   subhead?: Record<Locale, string>;
+  /** Google Play accessibility copy. Falls back to headline + subhead when omitted. */
+  altText?: Record<Locale, string>;
   /** Overrides the theme background for this scene. */
   background?: string;
   /** Overrides theme.layout for this scene; a key from src/layouts.ts. */
@@ -133,6 +135,17 @@ export type StoreListing = {
   description: Record<Locale, string>;
 };
 
+export type GooglePlayConfig = {
+  /** Optional copy/style overrides for the required 1024x500 feature graphic. */
+  featureGraphic?: {
+    title?: Record<Locale, string>;
+    subtitle?: Record<Locale, string>;
+    background?: string;
+    titleColor?: string;
+    subtitleColor?: string;
+  };
+};
+
 export type GoldieConfig = {
   /** Absolute path to the app repo. Holds `.argent/flows`; also used for messages and for locating the build. */
   appRoot: string;
@@ -180,6 +193,8 @@ export type GoldieConfig = {
   frame: { variant: FrameVariant } | { image: string };
   theme: Theme;
   store: StoreListing;
+  /** Google Play-specific listing assets. Sensible defaults are generated when omitted. */
+  googlePlay?: GooglePlayConfig;
   scenes: Scene[];
 };
 
