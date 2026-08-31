@@ -20,5 +20,6 @@ jobs:
       - run: bun test
       - run: bun run check:ci
       - run: bunx tsc --noEmit
+      - run: cd studio && bun install --frozen-lockfile
       - run: cd studio && bunx tsc --noEmit
       - run: bun run build
