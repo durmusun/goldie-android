@@ -17,15 +17,26 @@ async function adbShell(serial: string, args: string[]): Promise<void> {
   await execOrThrow("adb", ["-s", serial, "shell", ...args]);
 }
 
-/** Serials of connected android devices in "device" state (booted, adb-ready). */
-async function adbSerials(): Promise<string[]> {
-  const r = await execOrThrow("adb", ["devices"]);
-  return r.stdout
+/**
+ * Serials of booted Android emulators only.
+ *
+ * Physical devices can appear before an emulator in `adb devices`. Goldie
+ * reinstalls the target app for deterministic captures, so selecting a phone
+ * here would unexpectedly erase its app data. Keep the Android pipeline
+ * emulator-only, as documented by the CLI and skill.
+ */
+export function parseAndroidEmulatorSerials(output: string): string[] {
+  return output
     .split("\n")
     .slice(1)
     .map((line) => line.trim().split(/\s+/))
-    .filter((parts) => parts[1] === "device")
+    .filter((parts) => parts[0]?.startsWith("emulator-") && parts[1] === "device")
     .map((parts) => parts[0]!);
+}
+
+async function adbSerials(): Promise<string[]> {
+  const r = await execOrThrow("adb", ["devices"]);
+  return parseAndroidEmulatorSerials(r.stdout);
 }
 
 /**

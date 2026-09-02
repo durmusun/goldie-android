@@ -1,6 +1,6 @@
 {
   "name": "goldie-android",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Google Play screenshots, feature graphics, listing packages, and compliance checks for Android apps.",
   "author": { "name": "durmusun" },
   "homepage": "https://github.com/durmusun/goldie-android",
