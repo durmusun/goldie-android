@@ -11,6 +11,29 @@ marketing artwork, validates the result, and exports an upload-ready package.
 > [Kacper Kapuściak's Goldie](https://github.com/kacperkapusciak/goldie).
 > For iOS and App Store assets, use the original Goldie project.
 
+## Example output
+
+The gallery below is one example of the output Goldie Android can produce. It
+demonstrates a feature graphic, scaled editorial copy, single-device hero
+frames, and a two-device composition. All account details and one-time codes
+visible in the images are synthetic demonstration data.
+
+<p align="center">
+  <img src="docs/samples/example/tr-TR/feature-graphic.png" alt="Example Google Play feature graphic generated with Goldie Android" width="820" />
+</p>
+
+| Live codes | Account setup | Backup |
+| --- | --- | --- |
+| <img src="docs/samples/example/tr-TR/01-live-codes.png" alt="Example live-code screenshot" width="260" /> | <img src="docs/samples/example/tr-TR/02-account-setup.png" alt="Example account-setup screenshot" width="260" /> | <img src="docs/samples/example/tr-TR/03-backup.png" alt="Example backup screenshot" width="260" /> |
+
+| App lock | Device transfer |
+| --- | --- |
+| <img src="docs/samples/example/tr-TR/04-app-lock.png" alt="Example app-lock screenshot" width="260" /> | <img src="docs/samples/example/tr-TR/05-device-transfer.png" alt="Example device-transfer screenshot" width="260" /> |
+
+The five phone screenshots are opaque 1080x1920 PNGs and the feature graphic
+is an opaque 1024x500 PNG. The exported package passes
+`goldie-android verify` without warnings.
+
 ## What it produces
 
 For every configured locale:
