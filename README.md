@@ -11,6 +11,31 @@ marketing artwork, validates the result, and exports an upload-ready package.
 > [Kacper Kapuściak's Goldie](https://github.com/kacperkapusciak/goldie).
 > For iOS and App Store assets, use the original Goldie project.
 
+## Showcase
+
+These Turkish Google Play assets for Vaultly Authenticator were generated from
+a real release APK with deterministic Argent flows. Goldie Android composed the
+captured UI with its code-native Android bezel, mixed panorama/hero/tilted
+layouts, localized copy, gradients, badges, and a custom transparent decoration
+layer. Every account and one-time code shown below is synthetic demo data.
+
+<p align="center">
+  <img src="docs/samples/vaultly/tr-TR/feature-graphic.png" alt="Vaultly Authenticator Google Play feature graphic" width="820" />
+</p>
+
+| Live codes — panorama | Live codes — continuation | Quick manual setup |
+| --- | --- | --- |
+| <img src="docs/samples/vaultly/tr-TR/01-live-codes-1.png" alt="Vaultly live codes panorama opening" width="260" /> | <img src="docs/samples/vaultly/tr-TR/02-live-codes-2.png" alt="Vaultly live codes panorama continuation" width="260" /> | <img src="docs/samples/vaultly/tr-TR/03-quick-add.png" alt="Vaultly manual account setup" width="260" /> |
+
+| Encrypted backup | Device security | Secure transfer |
+| --- | --- | --- |
+| <img src="docs/samples/vaultly/tr-TR/04-encrypted-backup.png" alt="Vaultly encrypted Google Drive backup" width="260" /> | <img src="docs/samples/vaultly/tr-TR/05-device-security.png" alt="Vaultly on-device security" width="260" /> | <img src="docs/samples/vaultly/tr-TR/06-secure-transfer.png" alt="Vaultly secure device transfer" width="260" /> |
+
+The six phone screenshots are opaque 1080x1920 PNGs and the feature graphic is
+an opaque 1024x500 PNG. The complete package passes `goldie-android verify`
+without warnings. Vaultly and the third-party service names used as demo data
+do not imply affiliation with the upstream Goldie project.
+
 ## What it produces
 
 For every configured locale:
