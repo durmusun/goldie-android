@@ -41,6 +41,8 @@ const config: GoldieConfig = {
     // The system stack, or a bundled typeface named first: "Merriweather",
     // "DM Mono", "Lato", "DM Sans", "Montserrat" (files in $GOLDIE/assets/fonts).
     fontFamily: '-apple-system, "SF Pro Display", system-ui, sans-serif',
+    headlineScale: 1,            // optional multiplier; use 0.8 for longer localized headlines
+    subheadScale: 1,             // optional multiplier for supporting copy
     copyHeightRatio: 0.24,       // fraction of frame height reserved for copy (classic layout)
     deviceWidthRatio: 0.84,      // fraction of frame width the bezel occupies (classic layout)
     template: "editorial",       // the strip's rhythm, see "Templates and layouts" below
@@ -68,6 +70,11 @@ const config: GoldieConfig = {
     featureGraphic: {
       title: { "en-US": "AppName" },
       subtitle: { "en-US": "A short benefit-led promise" },
+      // textAlign: "left",
+      // artwork: [
+      //   { src: "art/mark.png", x: 0.68, y: 0.12, width: 0.24 },
+      //   { src: "art/halo.png", x: 0.56, y: -0.12, width: 0.58, opacity: 0.6 },
+      // ],
     },
   },
 
