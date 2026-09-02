@@ -5,6 +5,10 @@ export type Theme = {
   headlineColor: string;
   subheadColor: string;
   fontFamily: string;
+  /** Multiplier for screenshot headline type. Defaults to 1. */
+  headlineScale?: number;
+  /** Multiplier for screenshot subhead type. Defaults to 1. */
+  subheadScale?: number;
   /** Fraction of the frame height reserved for copy above the device. */
   copyHeightRatio: number;
   /** Fraction of the frame width the device bezel occupies. */

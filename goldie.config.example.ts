@@ -41,6 +41,8 @@ const config: GoldieConfig = {
     // System stack, or a bundled typeface first: "Merriweather", "DM Mono",
     // "Lato", "DM Sans", "Montserrat" (see src/fonts.ts).
     fontFamily: '"DM Sans", system-ui, sans-serif',
+    headlineScale: 1,
+    subheadScale: 1,
     copyHeightRatio: 0.24,
     deviceWidthRatio: 0.84,
     // The strip's rhythm: a built-in template ("editorial", "showcase",

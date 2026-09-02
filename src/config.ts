@@ -98,6 +98,10 @@ export type Theme = {
   headlineColor: string;
   subheadColor: string;
   fontFamily: string;
+  /** Multiplier for screenshot headline type. Defaults to 1. */
+  headlineScale?: number;
+  /** Multiplier for screenshot subhead type. Defaults to 1. */
+  subheadScale?: number;
   /** Fraction of the screenshot height reserved for copy above the device. */
   copyHeightRatio: number;
   /** Fraction of the screenshot width the device bezel occupies. */
@@ -143,6 +147,21 @@ export type GooglePlayConfig = {
     background?: string;
     titleColor?: string;
     subtitleColor?: string;
+    /** Editorial copy alignment. Centred preserves the original output. */
+    textAlign?: "center" | "left";
+    /** Transparent artwork layers drawn over the background and under the copy. */
+    artwork?: Array<{
+      /** Image path relative to the config file. */
+      src: string;
+      /** Top-left position as fractions of the 1024x500 graphic. */
+      x: number;
+      y: number;
+      /** Width as a fraction of the graphic width; height follows the source ratio. */
+      width: number;
+      rotate?: number;
+      /** 0-1 alpha multiplier. */
+      opacity?: number;
+    }>;
   };
 };
 

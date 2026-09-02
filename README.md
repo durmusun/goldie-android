@@ -102,6 +102,41 @@ Scenes point to replayable Argent YAML flows. See
 [`skills/goldie/references`](skills/goldie/references) documentation for the
 full schema and flow conventions.
 
+### Typography and feature artwork
+
+Long localized copy can be tuned without changing the built-in layouts:
+
+```ts
+theme: {
+  // ...colors and fontFamily
+  headlineScale: 0.8,
+  subheadScale: 0.9,
+},
+```
+
+Both scales default to `1` and are applied identically by the CLI renderer and
+Studio preview.
+
+Google Play feature graphics can use left- or center-aligned copy plus
+transparent artwork layers:
+
+```ts
+googlePlay: {
+  featureGraphic: {
+    title: { "en-US": "AppName" },
+    subtitle: { "en-US": "A concise product promise" },
+    textAlign: "left",
+    artwork: [
+      { src: "art/halo.png", x: 0.52, y: -0.2, width: 0.62, opacity: 0.6 },
+      { src: "art/mark.png", x: 0.7, y: 0.14, width: 0.22 },
+    ],
+  },
+},
+```
+
+Artwork paths resolve relative to `goldie.config.ts`. Layers render in array
+order above the background and below the feature-graphic copy.
+
 ## Run
 
 Always run the complete validation sequence before treating an export as

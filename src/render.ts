@@ -164,29 +164,54 @@ export async function renderPlayFeatureGraphic(cfg: LoadedConfig, locale: string
   ctx.fillStyle = paint(ctx, background, spec.width, spec.height);
   ctx.fillRect(0, 0, spec.width, spec.height);
 
-  // Subtle code-native depth that stays inside Google's central safe area.
-  ctx.save();
-  ctx.globalAlpha = 0.12;
-  ctx.fillStyle = isDarkBackground(background) ? "#FFFFFF" : "#0E1B2A";
-  ctx.beginPath();
-  ctx.arc(900, 80, 230, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(95, 455, 180, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
+  if (feature?.artwork?.length) {
+    for (const artwork of feature.artwork) {
+      const image = await loadImage(resolve(cfg.root, artwork.src));
+      const width = spec.width * artwork.width;
+      const height = (width * image.height) / image.width;
+      const left = spec.width * artwork.x;
+      const top = spec.height * artwork.y;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, artwork.opacity ?? 1));
+      if (artwork.rotate) {
+        ctx.translate(left + width / 2, top + height / 2);
+        ctx.rotate((artwork.rotate * Math.PI) / 180);
+        ctx.translate(-(left + width / 2), -(top + height / 2));
+      }
+      ctx.drawImage(image, left, top, width, height);
+      ctx.restore();
+    }
+  } else {
+    // Subtle code-native depth that stays inside Google's central safe area.
+    ctx.save();
+    ctx.globalAlpha = 0.12;
+    ctx.fillStyle = isDarkBackground(background) ? "#FFFFFF" : "#0E1B2A";
+    ctx.beginPath();
+    ctx.arc(900, 80, 230, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(95, 455, 180, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
 
   const dark = isDarkBackground(background);
   const title = feature?.title?.[locale] ?? cfg.store.name;
   const subtitle = feature?.subtitle?.[locale] ?? cfg.store.subtitle[locale] ?? "";
   const titleColor = feature?.titleColor ?? (dark ? "#FFFFFF" : "#0E1B2A");
   const subtitleColor = feature?.subtitleColor ?? (dark ? "#D9E1EA" : "#445268");
-  const titleFont = `700 68px ${cfg.theme.fontFamily}`;
-  const subtitleFont = `400 34px ${cfg.theme.fontFamily}`;
-  const titleLines = wrapLines(ctx, title, titleFont, 0, 800);
-  const subtitleLines = subtitle ? wrapLines(ctx, subtitle, subtitleFont, 0, 800) : [];
-  const titleHeight = titleLines.length * 68 * 1.08;
-  const subtitleHeight = subtitleLines.length * 34 * 1.2;
+  const align = feature?.textAlign ?? "center";
+  const leftAligned = align === "left";
+  const titleSize = leftAligned ? 62 : 68;
+  const subtitleSize = leftAligned ? 28 : 34;
+  const maxWidth = leftAligned ? 520 : 800;
+  const textX = leftAligned ? 72 : spec.width / 2;
+  const titleFont = `700 ${titleSize}px ${cfg.theme.fontFamily}`;
+  const subtitleFont = `400 ${subtitleSize}px ${cfg.theme.fontFamily}`;
+  const titleLines = wrapLines(ctx, title, titleFont, 0, maxWidth);
+  const subtitleLines = subtitle ? wrapLines(ctx, subtitle, subtitleFont, 0, maxWidth) : [];
+  const titleHeight = titleLines.length * titleSize * 1.08;
+  const subtitleHeight = subtitleLines.length * subtitleSize * 1.2;
   const gap = subtitleLines.length ? 24 : 0;
   let y = (spec.height - titleHeight - subtitleHeight - gap) / 2;
   y = drawLines(ctx, {
@@ -195,9 +220,9 @@ export async function renderPlayFeatureGraphic(cfg: LoadedConfig, locale: string
     color: titleColor,
     lineHeight: 1.08,
     letterSpacing: 0,
-    x: spec.width / 2,
+    x: textX,
     y,
-    align: "center",
+    align,
   });
   if (subtitleLines.length) {
     drawLines(ctx, {
@@ -206,9 +231,9 @@ export async function renderPlayFeatureGraphic(cfg: LoadedConfig, locale: string
       color: subtitleColor,
       lineHeight: 1.2,
       letterSpacing: 0,
-      x: spec.width / 2,
+      x: textX,
       y: y + gap,
-      align: "center",
+      align,
     });
   }
 
@@ -258,19 +283,21 @@ function drawCopy(
   theme: Theme,
   text: { headline: string; subhead?: string },
 ) {
+  const headlineScale = theme.headlineScale ?? 1;
+  const subheadScale = theme.subheadScale ?? 1;
   const blocks = [
     {
       text: text.headline,
-      font: `${TYPE.headlineWeight} ${tile.width * TYPE.headlineSize}px ${theme.fontFamily}`,
+      font: `${TYPE.headlineWeight} ${tile.width * TYPE.headlineSize * headlineScale}px ${theme.fontFamily}`,
       color: theme.headlineColor,
       lineHeight: TYPE.headlineLineHeight,
-      letterSpacing: tile.width * TYPE.headlineTracking,
+      letterSpacing: tile.width * TYPE.headlineTracking * headlineScale,
     },
     ...(text.subhead
       ? [
           {
             text: text.subhead,
-            font: `${TYPE.subheadWeight} ${tile.width * TYPE.subheadSize}px ${theme.fontFamily}`,
+            font: `${TYPE.subheadWeight} ${tile.width * TYPE.subheadSize * subheadScale}px ${theme.fontFamily}`,
             color: theme.subheadColor,
             lineHeight: TYPE.subheadLineHeight,
             letterSpacing: 0,
