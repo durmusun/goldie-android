@@ -1,7 +1,7 @@
 # goldie.config.ts
 
-One file holds everything app-specific. It exports a `GoldieConfig` (type from
-`$GOLDIE/src/config.ts`). Every relative path in it resolves against the config
+One file holds everything app-specific. It exports a `GoldieConfig` from the
+`goldie-android` package. Every relative path in it resolves against the config
 file itself, and `out/` is created next to it. Scene flows are the exception:
 they are argent flow names resolved against `flowsDir`, which defaults to
 `.argent/flows` inside `appRoot`.
@@ -9,24 +9,24 @@ they are argent flow names resolved against `flowsDir`, which defaults to
 ## Annotated example
 
 ```ts
-import type { GoldieConfig } from "/Users/<you>/Dev/goldie/src/config.ts";
+import type { GoldieConfig } from "goldie-android";
 
 const APP_ROOT = "/absolute/path/to/the/app/repo";
 
 const config: GoldieConfig = {
   appRoot: APP_ROOT,
-  // The Release simulator build found in Step 1. Absolute path.
-  appPath: `${process.env.HOME}/Library/Developer/Xcode/DerivedData/<App>-<hash>/Build/Products/Release-iphonesimulator/<App>.app`,
+  // Shared inherited fields; unused by android-phone.
+  appPath: "",
   bundleId: "com.example.app",
 
-  // Google Play too: add "android-phone" and the android block below. Scenes
-  // and flows are shared across devices; argent flows replay on Android when
-  // their selectors match. The emulator must already be running.
-  // android: { appPath: "/path/to/app-release.apk", applicationId: "com.example.app" },
+  android: {
+    appPath: "/absolute/path/to/app-release.apk",
+    applicationId: "com.example.app",
+  },
 
-  devices: ["iphone-6.9"],       // keys from $GOLDIE/src/specs.ts; "android-phone" for Google Play
+  devices: ["android-phone"],
   locales: ["en-US"],
-  appearance: "light",           // simulator appearance for every capture
+  appearance: "light",           // emulator appearance for every capture
 
   // Bundled bezels: "17-pro-silver" | "17-pro-blue" | "17-pro-orange".
   // Pick the finish that contrasts with the background.
@@ -40,7 +40,7 @@ const config: GoldieConfig = {
     subheadColor: "#5A6A7D",     // light text on a dark background and vice versa
     // The system stack, or a bundled typeface named first: "Merriweather",
     // "DM Mono", "Lato", "DM Sans", "Montserrat" (files in $GOLDIE/assets/fonts).
-    fontFamily: '-apple-system, "SF Pro Display", system-ui, sans-serif',
+    fontFamily: '"DM Sans", system-ui, sans-serif',
     headlineScale: 1,            // optional multiplier; use 0.8 for longer localized headlines
     subheadScale: 1,             // optional multiplier for supporting copy
     copyHeightRatio: 0.24,       // fraction of frame height reserved for copy (classic layout)
@@ -54,12 +54,12 @@ const config: GoldieConfig = {
   // Renders the realistic store page around the assets in the studio.
   store: {
     name: "AppName",
-    subtitle: { "en-US": "Under 30 characters, Apple's limit" },
+    subtitle: { "en-US": "A short product promise" },
     developer: "Company Name",
     category: "Productivity",
     rating: 4.8,                 // cosmetic, studio only
-    ratingCount: "1.2K Ratings",
-    ageRating: "4+",
+    ratingCount: "1K reviews",
+    ageRating: "Everyone",
     price: "Free",
     description: { "en-US": "Two or three short paragraphs, store voice." },
   },
@@ -99,7 +99,7 @@ const config: GoldieConfig = {
     // ... 3 or 4 more screenshot scenes ...
 
     // Exactly one preview scene. Each segment is its own flow and clip; the
-    // clips are joined as recorded (Apple allows no bezel or captions).
+    // clips are joined as recorded into a portrait YouTube promo video.
     {
       kind: "preview",
       id: "preview",
@@ -115,8 +115,8 @@ const config: GoldieConfig = {
 export default config;
 ```
 
-Import the type with an absolute path to the goldie checkout, since the config
-lives in the app repo.
+Install `goldie-android` in the asset workspace when editor type resolution is
+needed; the type-only import is removed before the config runs.
 
 ## Templates and layouts
 
@@ -186,11 +186,11 @@ applies to every tile, `scenes[].decorations` to one; both stack.
 
 | Asset | Spec | Location |
 |---|---|---|
-| 6.9" screenshots | 1320x2868 PNG, no alpha | `out/screenshots/6.9/<locale>/` |
-| 6.9" preview | 886x1920 H.264 30fps AAC, 15 to 30 s | `out/previews/6.9/<locale>/` |
+| Play phone screenshots | 1080x1920 RGB PNG | `out/screenshots/android-phone/<locale>/` |
+| Play promo video | 1080x2400 H.264/AAC | `out/previews/android-phone/<locale>/` |
 | Play phone screenshots | 1080x1920 RGB PNG | `out/google-play/<locale>/phone/` |
 | Play feature graphic | 1024x500 RGB PNG | `out/google-play/<locale>/feature-graphic.png` |
 | Play metadata | JSON | `out/google-play/<locale>/{alt-text,listing-manifest}.json` |
 
-`goldie-android verify` checks the finished files against these with `sips` and
-`ffprobe` and fails on any mismatch.
+`goldie-android verify` checks PNG headers directly and uses `ffprobe` for
+video, failing on any mismatch.

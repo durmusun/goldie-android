@@ -1,6 +1,6 @@
 {
   "name": "goldie-android",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "description": "Google Play screenshot, feature graphic, listing package, and compliance automation driven by argent",
   "license": "MIT",
   "repository": {
@@ -37,6 +37,7 @@
     "dist/",
     "LICENSE",
     "README.md",
+    "assets/favicon.png",
     "assets/ATTRIBUTION.md",
     "assets/17-pro-*.png",
     "assets/fonts/",
@@ -48,7 +49,9 @@
     "node": ">=20.12.0"
   },
   "os": [
-    "darwin"
+    "darwin",
+    "linux",
+    "win32"
   ],
   "publishConfig": {
     "access": "public"

@@ -17,3 +17,6 @@ The fonts in `assets/fonts/` are licensed under the
 and each family's copyright notice are in `assets/fonts/OFL.txt`.
 
 - DM Mono, DM Sans, Lato, Merriweather, Montserrat
+- Noto Sans SC, from [notofonts/noto-cjk](https://github.com/notofonts/noto-cjk).
+  Copyright 2014-2021 [Adobe](http://www.adobe.com/), with Reserved Font Name
+  'Source'. Noto is a trademark of Google Inc.

@@ -1,9 +1,10 @@
 # Authoring argent flows for goldie
 
-Flows are argent YAML in the app repo's `.argent/flows`, replayed with
-`argent flow run` on a booted simulator. goldie refers to them by name, so
+Flows are Argent YAML in the external asset workspace's `.argent/flows`,
+replayed with `argent flow run` on an Android emulator. Goldie Android refers
+to them by name, so
 `flow: "store-01-issues"` runs `.argent/flows/store-01-issues.yaml` and you can
-run that same flow by hand from the app repo while authoring it.
+run that same flow by hand from the asset workspace while authoring it.
 
 Flows run with no LLM, so every step must be deterministic. goldie handles the
 surrounding machinery for you: before any flow it pins the status bar and
@@ -99,9 +100,9 @@ Pacing rules:
 - A segment's clip lasts as long as the flow takes, plus its `holdSeconds`.
   Use `wait:` steps to let a screen read before and after an action; 800 to
   1500 ms reads naturally.
-- The whole video must total 15 to 30 seconds. `goldie preview` refuses to
-  render outside that window. With 3 or 4 segments, aim for 4 to 7 seconds
-  each.
+- Google Play links to a YouTube promo, so Android preview videos have no
+  App Store duration limit. With 3 or 4 segments, 4 to 7 seconds each remains
+  a useful pacing target.
 - Recordings run in real time with touch indicators off; a swipe with
   `durationMs` around 700 looks human.
 

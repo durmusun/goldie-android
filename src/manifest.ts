@@ -1,4 +1,15 @@
-import { copyFile, mkdir, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import {
+  copyFile,
+  lstat,
+  mkdir,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  symlink,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import type { CaptureManifest } from "./capture.ts";
 import {
@@ -13,6 +24,7 @@ import {
 } from "./config.ts";
 import { execOrThrow } from "./exec.ts";
 import { FONTS, fontFilePath } from "./fonts.ts";
+import { imageSize } from "./image.ts";
 import { LAYOUTS, TEMPLATES } from "./layouts.ts";
 import { DEVICES, type DeviceKey } from "./specs.ts";
 
@@ -44,6 +56,7 @@ export type StoreManifest = {
   devices: Array<{
     key: DeviceKey;
     label: string;
+    platform: "ios" | "android";
     simulatorName: string | null;
     screenshot: { width: number; height: number };
     preview: { width: number; height: number } | null;
@@ -211,6 +224,7 @@ export async function writeManifest(cfg: LoadedConfig): Promise<string> {
     devices: cfg.devices.map((key) => ({
       key,
       label: DEVICES[key].label,
+      platform: DEVICES[key].platform,
       simulatorName: DEVICES[key].simulatorName ?? null,
       screenshot: DEVICES[key].screenshot,
       preview: DEVICES[key].preview,
@@ -280,9 +294,8 @@ async function collect(
   deviceKey: DeviceKey,
   locale: string,
 ): Promise<LocaleAssets> {
-  const label = DEVICES[deviceKey].label;
-  const shotDir = join(cfg.outDir, "screenshots", label, locale);
-  const previewDir = join(cfg.outDir, "previews", label, locale);
+  const shotDir = join(cfg.outDir, "screenshots", deviceKey, locale);
+  const previewDir = join(cfg.outDir, "previews", deviceKey, locale);
   const sceneOrder = cfg.scenes.filter(isScreenshot).map((s) => s.id);
 
   const screenshots: LocaleAssets["screenshots"] = [];
@@ -293,7 +306,7 @@ async function collect(
     const sceneId = sceneOrder.find((id) => name.includes(id)) ?? basename(name, ".png");
     screenshots.push({
       sceneId,
-      url: `screenshots/${label}/${locale}/${name}`,
+      url: `screenshots/${deviceKey}/${locale}/${name}`,
       width,
       height,
       bytes: (await stat(file)).size,
@@ -308,7 +321,7 @@ async function collect(
     const probe = await videoInfo(file);
     preview = {
       sceneId: previewScene.id,
-      url: `previews/${label}/${locale}/${previewName}`,
+      url: `previews/${deviceKey}/${locale}/${previewName}`,
       ...probe,
       bytes: (await stat(file)).size,
     };
@@ -319,18 +332,24 @@ async function collect(
 
 const ls = async (dir: string) => readdir(dir).catch(() => [] as string[]);
 
-/** Relative symlink, replaced on every run so a moved out/ never goes stale. */
+/**
+ * Directory link, replaced on every run so a moved out/ never goes stale.
+ * A relative symlink on macOS and Linux. On Windows a directory symlink needs
+ * Developer Mode or a privilege most accounts lack, so an NTFS junction is
+ * used instead; junctions need an absolute target and no special rights.
+ */
 async function link(target: string, path: string): Promise<void> {
-  await rm(path, { recursive: true, force: true });
-  await symlink(relative(dirname(path), target), path, "dir");
-}
-
-async function imageSize(file: string) {
-  const r = await execOrThrow("sips", ["-g", "pixelWidth", "-g", "pixelHeight", file]);
-  return {
-    width: Number(r.stdout.match(/pixelWidth:\s*(\d+)/)?.[1]),
-    height: Number(r.stdout.match(/pixelHeight:\s*(\d+)/)?.[1]),
-  };
+  // Unlink an existing link by name; a recursive rm must never follow a
+  // junction into the real captures on a rerun.
+  const existing = await lstat(path).catch(() => null);
+  if (existing?.isSymbolicLink()) await unlink(path);
+  else if (existing) await rm(path, { recursive: true, force: true });
+  if (process.platform === "win32") {
+    await mkdir(target, { recursive: true }); // a junction to a missing dir is dangling
+    await symlink(resolve(target), path, "junction");
+  } else {
+    await symlink(relative(dirname(path), target), path, "dir");
+  }
 }
 
 async function videoInfo(file: string) {

@@ -386,26 +386,33 @@ export function compose(
         : spec.copy.align === "left"
           ? padX
           : width / 2;
+    // Centred copy follows the reference column on a wide tile, but a
+    // left-aligned block reads against the card's left edge, so it skips
+    // the centring shift and keeps its inset from the real edge.
+    const copyDx = spec.copy.align === "left" ? 0 : dx;
     const boxLeft = spec.copy.align === "left" ? x : x - maxWidth / 2;
     const top = spec.copy.position === "top" ? 0 : height - copyHeight;
     copy = {
       position: spec.copy.position,
       align: spec.copy.align,
-      x: x + dx,
+      x: x + copyDx,
       y: spec.copy.position === "top" ? height * TYPE.padTop : height - height * TYPE.padBottom,
       maxWidth,
-      box: { left: boxLeft + dx, top, width: maxWidth, height: copyHeight },
+      box: { left: boxLeft + copyDx, top, width: maxWidth, height: copyHeight },
     };
   }
 
   // Copy composes in the reference column, but a device shrunk into it leaves
   // dead margins on a wider tile. Devices there keep their real-tile size and
-  // slide DOWN until they clear the copy band, bleeding off the bottom the way
-  // dense 9:16 frames do; reference-aspect tiles skip both adjustments.
+  // slide until they clear the copy band — down past a top band, up past a
+  // bottom one — bleeding off the far edge the way dense 9:16 frames do;
+  // reference-aspect tiles skip both adjustments. A
+  // copy-less layout (minimal) shows the whole device, so real-tile sizing
+  // would push it past the tile's top and bottom; it keeps the reference size.
   const squat = tile !== tileIn;
   const devices = spec.devices.map((d) => {
     const widthRatio = isClassic ? theme.deviceWidthRatio : d.widthRatio;
-    const deviceTile = squat && !d.fitBelowCopy ? tileIn : tile;
+    const deviceTile = squat && !d.fitBelowCopy && spec.copy.position !== "none" ? tileIn : tile;
     let scale = (deviceTile.width * widthRatio) / art.width;
     let left: number;
     let top: number;
@@ -420,6 +427,9 @@ export function compose(
       top = height * d.y - (art.height * scale) / 2;
       if (squat && copy && spec.copy.position === "top") {
         top = Math.max(top, copy.box.height + height * 0.015);
+      }
+      if (squat && copy && spec.copy.position === "bottom") {
+        top = Math.min(top, copy.box.top - height * 0.015 - art.height * scale);
       }
     }
     return {

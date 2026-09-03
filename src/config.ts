@@ -332,10 +332,19 @@ export function applyDesign(cfg: LoadedConfig, design: DesignOverrides): void {
     cfg.theme.background = design.background;
     for (const scene of cfg.scenes) if (isScreenshot(scene)) scene.background = undefined;
     // The config's copy colors assume its own background; a dark override
-    // would render near-black headlines on a near-black gradient.
-    if (isDarkBackground(design.background)) {
+    // would render near-black headlines on a near-black gradient, and a
+    // light override under light copy colors is just as unreadable.
+    const lum = backgroundLuminance(design.background);
+    if (lum !== null && lum < 0.5) {
       cfg.theme.headlineColor = "#FFFFFF";
       cfg.theme.subheadColor = "#D9E1EA";
+    } else if (lum !== null) {
+      if ((backgroundLuminance(cfg.theme.headlineColor) ?? 0) > 0.5) {
+        cfg.theme.headlineColor = "#0E1B2A";
+      }
+      if ((backgroundLuminance(cfg.theme.subheadColor) ?? 0) > 0.5) {
+        cfg.theme.subheadColor = "#5A6A7D";
+      }
     }
   }
   if (design.frame) {
@@ -435,12 +444,12 @@ export function reorderScenes(scenes: Scene[], order: string[]): Scene[] {
 }
 
 /**
- * Mean relative luminance of the background's hex stops, below 0.5 counts as
- * dark. Backgrounds without six-digit hex colors keep the config's copy colors.
+ * Mean relative luminance of the value's six-digit hex colors, or null when
+ * it has none (keep the config's copy colors then).
  */
-export function isDarkBackground(css: string): boolean {
+export function backgroundLuminance(css: string): number | null {
   const hexes = css.match(/#[0-9a-fA-F]{6}/g);
-  if (!hexes || hexes.length === 0) return false;
+  if (!hexes || hexes.length === 0) return null;
   const luminance = (hex: string) => {
     const channel = (offset: number) => {
       const c = parseInt(hex.slice(offset, offset + 2), 16) / 255;
@@ -448,7 +457,13 @@ export function isDarkBackground(css: string): boolean {
     };
     return 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5);
   };
-  return hexes.reduce((sum, hex) => sum + luminance(hex), 0) / hexes.length < 0.5;
+  return hexes.reduce((sum, hex) => sum + luminance(hex), 0) / hexes.length;
+}
+
+/** Whether a parseable background is dark enough to need light copy. */
+export function isDarkBackground(css: string): boolean {
+  const luminance = backgroundLuminance(css);
+  return luminance !== null && luminance < 0.5;
 }
 
 const GOLDIE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");

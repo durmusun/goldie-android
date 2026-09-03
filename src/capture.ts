@@ -9,7 +9,7 @@ import {
   type PreviewScene,
 } from "./config.ts";
 import * as device from "./device.ts";
-import { execOrThrow } from "./exec.ts";
+import { imageSize } from "./image.ts";
 import { FlowFailure } from "./repair.ts";
 import { DEVICES, type DeviceKey } from "./specs.ts";
 
@@ -95,9 +95,9 @@ export async function capture(cfg: LoadedConfig, deviceKey: DeviceKey): Promise<
   const previewScene = cfg.scenes.find(isPreview);
   if (previewScene) {
     if (spec.preview) {
-      manifest.preview = await captureSegments(cfg, previewScene, deviceKey, udid, rawDir);
+      manifest.preview = await captureSegments(cfg, previewScene, deviceKey, udid, rawDir, app.id);
     } else {
-      console.log(`  Google Play has no preview videos; skipping segments for ${deviceKey}`);
+      console.log(`  ${deviceKey} has no preview pipeline; skipping segments`);
     }
   }
 
@@ -125,13 +125,14 @@ async function captureSegments(
   deviceKey: DeviceKey,
   udid: string,
   rawDir: string,
+  appId: string,
 ): Promise<CaptureManifest["preview"]> {
   const clips: NonNullable<CaptureManifest["preview"]>["clips"] = [];
 
   // Segment flows are fragments that chain from the Issues list. Restarting
   // here rather than inside segment 1 keeps the cold-start frames - a blank
   // screen while the bundle loads - out of the recording.
-  await argent.run("restart-app", { udid, bundleId: cfg.bundleId });
+  await argent.run("restart-app", { udid, bundleId: appId });
   await argent.run("await-screen-idle", { udid, timeoutMs: 60000 }).catch(() => {});
 
   for (const segment of scene.segments) {
@@ -178,14 +179,6 @@ async function captureSegments(
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-async function imageSize(file: string): Promise<{ width: number; height: number }> {
-  const r = await execOrThrow("sips", ["-g", "pixelWidth", "-g", "pixelHeight", file]);
-  return {
-    width: Number(r.stdout.match(/pixelWidth:\s*(\d+)/)?.[1]),
-    height: Number(r.stdout.match(/pixelHeight:\s*(\d+)/)?.[1]),
-  };
-}
 
 async function assertSize(file: string, width: number, height: number): Promise<void> {
   const got = await imageSize(file);

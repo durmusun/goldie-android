@@ -1,5 +1,8 @@
+import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import { readdir } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import * as argent from "./argent.ts";
 import { exec, execOrThrow } from "./exec.ts";
 import { DEVICES, type DeviceKey } from "./specs.ts";
@@ -73,25 +76,115 @@ async function sendDemoCommands(serial: string): Promise<void> {
   await demo(["-e", "command", "notifications", "-e", "visible", "false"]);
 }
 
+/** Directory holding AVDs: $ANDROID_AVD_HOME, else ~/.android/avd. */
+function avdHome(): string {
+  return process.env.ANDROID_AVD_HOME || join(homedir(), ".android", "avd");
+}
+
+/** Installed AVD names, sorted deterministically. */
+export async function availableAvds(): Promise<string[]> {
+  const entries = await readdir(avdHome(), { withFileTypes: true }).catch(() => []);
+  return entries
+    .filter((entry) => entry.isDirectory() && entry.name.endsWith(".avd"))
+    .map((entry) => basename(entry.name, ".avd"))
+    .sort();
+}
+
+/** Where Android Studio installs the SDK by default on each host. */
+function defaultSdkRoot(): string {
+  switch (process.platform) {
+    case "darwin":
+      return join(homedir(), "Library", "Android", "sdk");
+    case "win32":
+      return join(
+        process.env.LOCALAPPDATA ?? join(homedir(), "AppData", "Local"),
+        "Android",
+        "Sdk",
+      );
+    default:
+      return join(homedir(), "Android", "Sdk");
+  }
+}
+
+/** The emulator launcher inside the Android SDK, or null when no SDK is found. */
+function emulatorBinary(): string | null {
+  const roots = [process.env.ANDROID_HOME, process.env.ANDROID_SDK_ROOT, defaultSdkRoot()];
+  const name = process.platform === "win32" ? "emulator.exe" : "emulator";
+  for (const root of roots) {
+    if (!root) continue;
+    const bin = join(root, "emulator", name);
+    if (existsSync(bin)) return bin;
+  }
+  return null;
+}
+
+const BOOT_DEADLINE_MS = 180_000;
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Boot an AVD without ever considering a connected physical device. */
+async function bootEmulator(bin: string, avdName: string): Promise<string> {
+  const before = new Set(await adbSerials().catch(() => []));
+  spawn(bin, ["-avd", avdName], { detached: true, stdio: "ignore" }).unref();
+  const deadline = Date.now() + BOOT_DEADLINE_MS;
+  let serial: string | null = null;
+  while (!serial) {
+    if (Date.now() > deadline) {
+      throw new Error(`Emulator "${avdName}" did not reach "device" state within 180s.`);
+    }
+    await sleep(2000);
+    const running = await adbSerials().catch(() => []);
+    serial = running.find((candidate) => !before.has(candidate)) ?? running[0] ?? null;
+  }
+  while (true) {
+    const result = await exec("adb", ["-s", serial, "shell", "getprop", "sys.boot_completed"], {
+      quiet: true,
+    });
+    if (result.code === 0 && result.stdout.trim() === "1") return serial;
+    if (Date.now() > deadline) {
+      throw new Error(`Emulator "${avdName}" did not finish booting within 180s.`);
+    }
+    await sleep(2000);
+  }
+}
+
 /**
- * First running emulator's adb serial. goldie does not boot emulators (AVD
- * names are a local choice), so one must already be running.
+ * First running emulator's adb serial. When none is running, capture can boot
+ * the first installed AVD automatically. Physical devices are never eligible.
  */
-async function resolveSerial(): Promise<string> {
+async function resolveSerial(opts: { autoBoot?: boolean } = {}): Promise<string> {
   const serials = await adbSerials().catch(() => []);
   if (serials[0]) return serials[0];
-  throw new Error(
-    'No Android emulator in "device" state. Start one: emulator -avd <name>  ' +
-      "(list with: emulator -list-avds)",
-  );
+  if (!(opts.autoBoot ?? true)) {
+    throw new Error(
+      'No Android emulator in "device" state. Start one: emulator -avd <name>  ' +
+        "(list with: emulator -list-avds)",
+    );
+  }
+  const avds = await availableAvds();
+  if (avds.length === 0) {
+    throw new Error(
+      "No Android AVD is installed. Create one in Android Studio > Device Manager and re-run.",
+    );
+  }
+  const bin = emulatorBinary();
+  if (!bin) {
+    throw new Error(
+      "Cannot find the emulator binary. Set ANDROID_HOME or ANDROID_SDK_ROOT to the Android SDK.",
+    );
+  }
+  console.log(`  booting AVD "${avds[0]}"…`);
+  return bootEmulator(bin, avds[0]!);
 }
 
 /**
  * Device identifier the argent tools take in place of a UDID: a simulator
  * UDID on iOS, a running emulator's adb serial on android.
  */
-export async function resolveUdid(key: DeviceKey): Promise<string> {
-  if (isAndroid(key)) return resolveSerial();
+export async function resolveUdid(
+  key: DeviceKey,
+  opts: { autoBoot?: boolean } = {},
+): Promise<string> {
+  if (isAndroid(key)) return resolveSerial(opts);
   const spec = DEVICES[key];
   const byRuntime = await simctlDevices();
   const runtimes = Object.keys(byRuntime)

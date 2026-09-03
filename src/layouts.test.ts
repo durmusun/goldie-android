@@ -80,6 +80,23 @@ describe("compose", () => {
     expect(c.copy!.box.top + c.copy!.box.height).toBe(tile.height);
     expect(c.copy!.y).toBeCloseTo(tile.height * (1 - 0.05));
   });
+
+  test("on a wide tile left-aligned copy stays at the card's left edge", () => {
+    const wide = { width: 1080, height: 1920 };
+    const narrow = compose(LAYOUTS.panorama, tile, theme);
+    const c = compose(LAYOUTS.panorama, wide, theme);
+    // The centring shift moves centred copy but never a left-aligned block.
+    expect(c.copy!.box.left).toBeCloseTo(narrow.copy!.box.left * (c.designWidth / tile.width));
+    const centred = compose(LAYOUTS.hero, wide, theme);
+    expect(centred.copy!.box.left).toBeGreaterThan(0);
+  });
+
+  test("on a wide tile the device clears a bottom copy band", () => {
+    const wide = { width: 1080, height: 1920 };
+    const c = compose(LAYOUTS["copy-below"], wide, theme);
+    const { frame } = c.devices[0]!;
+    expect(frame.top + frame.height).toBeLessThanOrEqual(c.copy!.box.top - wide.height * 0.015);
+  });
 });
 
 describe("resolveScenes", () => {
