@@ -75,6 +75,10 @@ Set `GOLDIE_CONFIG` on every command because shell state may not persist
 between tool calls. Source checkout execution is an advanced development
 fallback, not the normal installation path.
 
+Goldie Android runs on macOS, Linux, and Windows with Node 20+, ffmpeg, the
+Android SDK, and Argent available. Capture reuses a running emulator or boots
+the first installed AVD; physical Android devices are never eligible.
+
 ## 1. Inspect before changing anything
 
 Read any existing external `goldie.config.ts`, `goldie.design.json`, and every
@@ -102,6 +106,12 @@ capabilities rather than repeating one screen with different headlines.
 Write short, truthful, benefit-led copy. Avoid install/download CTAs, ranking
 claims, unverifiable superlatives, prices, discounts, awards, and guarantees.
 Match the app's existing voice and locale.
+
+When a Play promo video is requested, add a three- or four-segment preview
+scene that tells one short user journey. Goldie joins the raw Android clips
+without captions or framing into a portrait video for the user to publish on
+YouTube; Google's Play listing links to that video instead of accepting an
+upload, so App Store duration rules do not apply.
 
 ## 3. Author config and flows
 
@@ -138,9 +148,9 @@ GOLDIE_CONFIG=/absolute/path/goldie.config.ts goldie-android manifest
 GOLDIE_CONFIG=/absolute/path/goldie.config.ts goldie-android verify
 ```
 
-`preview` intentionally produces no uploaded video for Android; Google Play
-uses a YouTube URL. It remains in the shared sequence so automation and Studio
-export use one pipeline.
+When a preview scene exists, `preview` renders a portrait Android video for a
+self-hosted YouTube Play promo. With no preview scene it remains a harmless
+step in the shared pipeline.
 
 `doctor` must confirm ADB, Argent, ffmpeg, release APK, emulator, flow paths,
 and watermark state. Never capture a Debug build with development overlays.
@@ -170,6 +180,7 @@ Report:
 - exact output directory and ZIP path;
 - screenshot count, dimensions, and locale;
 - feature graphic dimensions;
+- preview video path and duration when configured;
 - whether `verify` passed;
 - every remaining warning;
 - any item that still needs human Play Console review.

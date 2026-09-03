@@ -84,7 +84,7 @@ export function Sidebar({
                 <Select
                   value={device}
                   onChange={onDevice}
-                  options={manifest.devices.map((d) => [d.key, `${d.label}"`])}
+                  options={manifest.devices.map((d) => [d.key, d.label])}
                 />
               </Field>
             ) : null}

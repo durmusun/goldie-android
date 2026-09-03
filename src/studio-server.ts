@@ -5,6 +5,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { dirname, extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { exec } from "./exec.ts";
+import { zipDirs } from "./zip.ts";
 
 /**
  * The studio's HTTP surface, shared by `goldie studio` (a static server over
@@ -180,7 +181,7 @@ export function exportHandler({ paths, cli }: StudioApi): (sub: string) => Handl
         // render or compliance failure.
         await rm(paths.exportZip, { force: true });
         for (const command of ["frame", "preview", "manifest", "verify"]) {
-          res.write(`$ goldie ${command}\n`);
+          res.write(`$ goldie-android ${command}\n`);
           await stream(bin!, [...prefix, command, ...flags], paths.configDir, res, {
             GOLDIE_CONFIG: paths.configPath,
           });
@@ -190,7 +191,8 @@ export function exportHandler({ paths, cli }: StudioApi): (sub: string) => Handl
         );
         if (exportDirs.length === 0) throw new Error("No rendered store assets to export.");
         res.write(`$ zip ${exportDirs.join(" + ")}\n`);
-        await stream("zip", ["-r", "-q", paths.exportZip, ...exportDirs], paths.outDir, res);
+        const count = await zipDirs(paths.outDir, exportDirs, paths.exportZip);
+        res.write(`  ${count} files\n`);
         res.write("[done]\n");
       } catch (err) {
         res.write(`[failed] ${err instanceof Error ? err.message : err}\n`);
@@ -311,7 +313,12 @@ export function serveStudio(api: StudioApi, port = 4321): Promise<string> {
 
 /** Open a URL in the default browser; best effort. */
 export async function openInBrowser(url: string): Promise<void> {
-  const cmd =
-    process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open";
-  await exec(cmd, [url], { quiet: true });
+  // `start` is a cmd.exe builtin, not a program; the empty string is its window title.
+  const [cmd, args] =
+    process.platform === "darwin"
+      ? ["open", [url]]
+      : process.platform === "win32"
+        ? ["cmd", ["/c", "start", '""', url]]
+        : ["xdg-open", [url]];
+  await exec(cmd, args, { quiet: true });
 }

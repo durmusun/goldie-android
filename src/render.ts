@@ -18,9 +18,10 @@ import {
   resolvedScenes,
   type Theme,
 } from "./config.ts";
-import { exec, execOrThrow } from "./exec.ts";
-import { registerFonts } from "./fonts.ts";
+import { execOrThrow } from "./exec.ts";
+import { registerFonts, withGlyphFallback } from "./fonts.ts";
 import { ANDROID_FRAME, type AndroidBezelStyle, androidBezelStyle, FRAME } from "./frame.ts";
+import { pngInfo } from "./image.ts";
 import { BADGE, type Composition, compose, SCREEN_SHADOW, TYPE } from "./layouts.ts";
 import {
   expectedPlayScreenshotCount,
@@ -51,7 +52,11 @@ async function readManifest(cfg: LoadedConfig, deviceKey: DeviceKey): Promise<Ca
 export async function renderScreenshots(cfg: LoadedConfig, deviceKey: DeviceKey, locale: string) {
   const spec = DEVICES[deviceKey];
   const manifest = await readManifest(cfg, deviceKey);
-  const outDir = join(cfg.outDir, "screenshots", spec.label, locale);
+  // Releases before 0.3 keyed this dir by spec.label; a stale label dir
+  // would otherwise ride along into the export zip.
+  if (spec.label !== deviceKey)
+    await rm(join(cfg.outDir, "screenshots", spec.label), { recursive: true, force: true });
+  const outDir = join(cfg.outDir, "screenshots", deviceKey, locale);
   await mkdir(outDir, { recursive: true });
   // A layout change renumbers the files; stale ones would otherwise be exported.
   for (const name of await readdir(outDir)) {
@@ -285,10 +290,11 @@ function drawCopy(
 ) {
   const headlineScale = theme.headlineScale ?? 1;
   const subheadScale = theme.subheadScale ?? 1;
+  const family = withGlyphFallback(theme.fontFamily);
   const blocks = [
     {
       text: text.headline,
-      font: `${TYPE.headlineWeight} ${tile.width * TYPE.headlineSize * headlineScale}px ${theme.fontFamily}`,
+      font: `${TYPE.headlineWeight} ${tile.width * TYPE.headlineSize * headlineScale}px ${family}`,
       color: theme.headlineColor,
       lineHeight: TYPE.headlineLineHeight,
       letterSpacing: tile.width * TYPE.headlineTracking * headlineScale,
@@ -297,7 +303,7 @@ function drawCopy(
       ? [
           {
             text: text.subhead,
-            font: `${TYPE.subheadWeight} ${tile.width * TYPE.subheadSize * subheadScale}px ${theme.fontFamily}`,
+            font: `${TYPE.subheadWeight} ${tile.width * TYPE.subheadSize * subheadScale}px ${family}`,
             color: theme.subheadColor,
             lineHeight: TYPE.subheadLineHeight,
             letterSpacing: 0,
@@ -422,7 +428,7 @@ async function drawDecorations(
   for (const d of decorations) {
     if (d.kind === "badge") {
       const text = pick(d.text, locale, sceneId, "badge");
-      const font = `${BADGE.weight} ${tile.width * BADGE.fontSize}px ${cfg.theme.fontFamily}`;
+      const font = `${BADGE.weight} ${tile.width * BADGE.fontSize}px ${withGlyphFallback(cfg.theme.fontFamily)}`;
       ctx.font = font;
       ctx.letterSpacing = "0px";
       const size = fontSize(font);
@@ -459,6 +465,23 @@ async function drawDecorations(
 
 const fontSize = (font: string) => Number(font.match(/(\d+(?:\.\d+)?)px/)?.[1]);
 
+const segmenter = new Intl.Segmenter(undefined, { granularity: "word" });
+
+/**
+ * Splits a paragraph at the points a line may break. Splitting on spaces
+ * alone would leave CJK copy as one unbreakable run (those scripts use no
+ * spaces), so segmentation finds the word boundaries instead. Whitespace and
+ * punctuation glue to the preceding unit, so a line never starts with them.
+ */
+function breakableUnits(paragraph: string): string[] {
+  const units: string[] = [];
+  for (const s of segmenter.segment(paragraph)) {
+    if (s.isWordLike || units.length === 0) units.push(s.segment);
+    else units[units.length - 1] += s.segment;
+  }
+  return units;
+}
+
 /** Word-wraps text to `maxWidth`, honouring explicit newlines. */
 export function wrapLines(
   ctx: SKRSContext2D,
@@ -472,16 +495,16 @@ export function wrapLines(
   const lines: string[] = [];
   for (const paragraph of text.split("\n")) {
     let line = "";
-    for (const word of paragraph.split(/\s+/).filter(Boolean)) {
-      const next = line ? `${line} ${word}` : word;
-      if (line && ctx.measureText(next).width > maxWidth) {
-        lines.push(line);
-        line = word;
+    for (const unit of breakableUnits(paragraph.replace(/\s+/g, " ").trim())) {
+      const next = line + unit;
+      if (line && ctx.measureText(next.trimEnd()).width > maxWidth) {
+        lines.push(line.trimEnd());
+        line = unit;
       } else {
         line = next;
       }
     }
-    lines.push(line);
+    lines.push(line.trimEnd());
   }
   return lines;
 }
@@ -605,17 +628,18 @@ function splitTopLevel(s: string): string[] {
 }
 
 /**
- * Joins the raw segment clips into one plain screen recording at the upload
- * size. App Store previews must be the device screen and nothing else, so no
- * bezel, background or captions are added; only an audio track, which Apple
- * requires even when it is silent.
+ * Joins the raw segment clips into one plain screen recording at the spec's
+ * preview size. App Store previews must be the device screen and nothing
+ * else, so no bezel, background or captions are added; only an audio track,
+ * which Apple requires even when it is silent. The android video follows the
+ * same shape, destined for the YouTube promo link the user posts themselves.
  */
 export async function renderPreview(cfg: LoadedConfig, deviceKey: DeviceKey, locale: string) {
   const spec = DEVICES[deviceKey];
   const scene = cfg.scenes.find(isPreview);
   if (!scene) return null;
   if (!spec.preview) {
-    console.log(`  ${deviceKey} has no preview pipeline (Google Play takes a YouTube link)`);
+    console.log(`  ${deviceKey} has no preview pipeline`);
     return null;
   }
   const manifest = await readManifest(cfg, deviceKey);
@@ -630,14 +654,17 @@ export async function renderPreview(cfg: LoadedConfig, deviceKey: DeviceKey, loc
   });
 
   const seconds = clips.reduce((s, c) => s + c.durationSeconds, 0);
-  if (seconds < PREVIEW.minSeconds || seconds > PREVIEW.maxSeconds) {
+  // The 15-30s window is Apple's upload rule; a YouTube video has no bounds.
+  if (spec.platform === "ios" && (seconds < PREVIEW.minSeconds || seconds > PREVIEW.maxSeconds)) {
     throw new Error(
       `Preview is ${seconds.toFixed(1)}s; Apple requires ${PREVIEW.minSeconds}-${PREVIEW.maxSeconds}s. ` +
         `Adjust the segment flows or their holdSeconds and re-capture.`,
     );
   }
 
-  const outDir = join(cfg.outDir, "previews", spec.label, locale);
+  if (spec.label !== deviceKey)
+    await rm(join(cfg.outDir, "previews", spec.label), { recursive: true, force: true });
+  const outDir = join(cfg.outDir, "previews", deviceKey, locale);
   await mkdir(outDir, { recursive: true });
   const list = join(outDir, `.${scene.id}.clips.txt`);
   await writeFile(list, clips.map((c) => `file '${c.file.replace(/'/g, "'\\''")}'`).join("\n"));
@@ -700,20 +727,8 @@ async function imageProbe(
   file: string,
 ): Promise<{ width: number; height: number; alpha: boolean } | null> {
   try {
-    const r = await execOrThrow("sips", [
-      "-g",
-      "pixelWidth",
-      "-g",
-      "pixelHeight",
-      "-g",
-      "hasAlpha",
-      file,
-    ]);
-    return {
-      width: Number(r.stdout.match(/pixelWidth:\s*(\d+)/)?.[1]),
-      height: Number(r.stdout.match(/pixelHeight:\s*(\d+)/)?.[1]),
-      alpha: /hasAlpha:\s*yes/.test(r.stdout),
-    };
+    const { width, height, hasAlpha } = await pngInfo(file);
+    return { width, height, alpha: hasAlpha };
   } catch {
     return null;
   }
@@ -728,29 +743,16 @@ export async function verify(
   const spec = DEVICES[deviceKey];
   let ok = true;
 
-  const shotDir = join(cfg.outDir, "screenshots", spec.label, locale);
-  const shotNames = (await readdir(shotDir).catch(() => [] as string[]))
-    .filter((name) => name.endsWith(".png"))
-    .sort();
+  const shotDir = join(cfg.outDir, "screenshots", deviceKey, locale);
+  const shotFiles = await filesWithExt(shotDir, ".png");
   const playProbes: PlayScreenshotProbe[] = [];
-  if (shotNames.length === 0) {
+  if (shotFiles.length === 0) {
     ok = false;
     console.log(`  FAIL screenshots  none found in ${shotDir}`);
   }
-  for (const name of shotNames) {
-    const file = join(shotDir, name);
-    const r = await execOrThrow("sips", [
-      "-g",
-      "pixelWidth",
-      "-g",
-      "pixelHeight",
-      "-g",
-      "hasAlpha",
-      file,
-    ]);
-    const width = Number(r.stdout.match(/pixelWidth:\s*(\d+)/)?.[1]);
-    const height = Number(r.stdout.match(/pixelHeight:\s*(\d+)/)?.[1]);
-    const alpha = /hasAlpha:\s*yes/.test(r.stdout);
+  for (const file of shotFiles) {
+    const name = basename(file);
+    const { width, height, hasAlpha: alpha } = await pngInfo(file);
     const good = width === spec.screenshot.width && height === spec.screenshot.height && !alpha;
     ok &&= good;
     console.log(
@@ -799,9 +801,8 @@ export async function verify(
   const previewSpec = spec.preview;
   if (!previewSpec) return ok;
 
-  const previewDir = join(cfg.outDir, "previews", spec.label, locale);
-  const videos = await exec("sh", ["-c", `ls ${previewDir}/*.mp4 2>/dev/null`], { quiet: true });
-  for (const file of videos.stdout.split("\n").filter(Boolean)) {
+  const previewDir = join(cfg.outDir, "previews", deviceKey, locale);
+  for (const file of await filesWithExt(previewDir, ".mp4")) {
     const r = await execOrThrow("ffprobe", [
       "-v",
       "error",
@@ -818,6 +819,9 @@ export async function verify(
     const fps = evalRatio(video?.avg_frame_rate ?? "0/1");
     const bytes = (await stat(file)).size;
 
+    // Duration and file-size bounds are Apple upload rules; the android video
+    // goes to YouTube, so only the pipeline's own output is checked there.
+    const appleBounds = spec.platform === "ios";
     const checks: Array<[string, boolean, string]> = [
       [
         "size",
@@ -828,7 +832,7 @@ export async function verify(
       ["fps", fps <= PREVIEW.fps + 0.01, fps.toFixed(2)],
       [
         "duration",
-        duration >= PREVIEW.minSeconds && duration <= PREVIEW.maxSeconds,
+        !appleBounds || (duration >= PREVIEW.minSeconds && duration <= PREVIEW.maxSeconds),
         `${duration.toFixed(1)}s`,
       ],
       [
@@ -836,7 +840,11 @@ export async function verify(
         Boolean(audio) && audio.codec_name === "aac",
         audio ? `${audio.codec_name} ${audio.sample_rate}Hz` : "none",
       ],
-      ["filesize", bytes <= PREVIEW.maxBytes, `${(bytes / 1024 / 1024).toFixed(1)} MB`],
+      [
+        "filesize",
+        !appleBounds || bytes <= PREVIEW.maxBytes,
+        `${(bytes / 1024 / 1024).toFixed(1)} MB`,
+      ],
     ];
     for (const [name, good, detail] of checks) {
       ok &&= good;
@@ -845,6 +853,15 @@ export async function verify(
   }
 
   return ok;
+}
+
+/** Absolute paths of the files in `dir` with the extension, sorted; empty when the dir is missing. */
+async function filesWithExt(dir: string, ext: string): Promise<string[]> {
+  const names = await readdir(dir).catch(() => [] as string[]);
+  return names
+    .filter((n) => n.endsWith(ext))
+    .sort()
+    .map((n) => join(dir, n));
 }
 
 const evalRatio = (r: string) => {

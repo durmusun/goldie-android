@@ -46,6 +46,9 @@ out/google-play/<locale>/
 └── listing-manifest.json   package metadata and compliance findings
 ```
 
+An optional preview scene is rendered to
+`out/previews/android-phone/<locale>/` for use as a self-hosted YouTube promo.
+
 The verifier enforces the Google Play requirements it can determine
 mechanically:
 
@@ -62,19 +65,23 @@ claims. A human must still review visual quality and misleading-content risk.
 
 ## Requirements
 
-- macOS;
+- macOS, Linux, or Windows;
 - Node.js 20.12 or newer;
-- Android SDK tools (`adb` and a running emulator);
+- Android SDK tools (`adb`, the emulator, and at least one installed AVD);
 - `ffmpeg` and `ffprobe`;
 - a release APK;
 - Argent 0.22 or newer.
 
-Goldie Android deliberately does not boot an arbitrary AVD. Start one first:
+Capture reuses a running Android emulator or boots the first installed AVD.
+Connected physical devices are always ignored. List or start AVDs manually with:
 
 ```bash
 emulator -list-avds
 emulator -avd <name>
 ```
+
+On Linux, Argent also needs its
+[Android emulator host prerequisites](https://github.com/software-mansion/argent#linux-host-extra-prerequisites-for-android-emulators).
 
 ## Install
 
@@ -140,6 +147,11 @@ theme: {
 Both scales default to `1` and are applied identically by the CLI renderer and
 Studio preview.
 
+When the config includes a preview scene, `preview` and `all` record it on the
+Android emulator and render a portrait video for a self-hosted YouTube promo.
+Google Play links to that video rather than accepting a direct upload, so the
+App Store's 15–30 second limit does not apply.
+
 Google Play feature graphics can use left- or center-aligned copy plus
 transparent artwork layers:
 
@@ -159,6 +171,9 @@ googlePlay: {
 
 Artwork paths resolve relative to `goldie.config.ts`. Layers render in array
 order above the background and below the feature-graphic copy.
+
+Noto Sans SC is bundled as an automatic glyph fallback, so CJK copy renders
+consistently in both Studio previews and exported images.
 
 ## Run
 
@@ -199,8 +214,9 @@ cutout geometry can be supplied through `android.frame`; external device art
 is never bundled automatically.
 
 Google Play accepts a YouTube URL rather than an uploaded app-preview video,
-so Android devices skip the video render while retaining the shared command
-pipeline.
+so an optional preview scene renders a 1080x2400 portrait video for the user
+to publish there. Google Play does not impose the App Store's 15–30 second
+preview window.
 
 ## Development
 
@@ -224,9 +240,9 @@ Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) before opening a pull request.
 - **Goldie Android Play packaging, compliance, Android framing, and Studio
   integration:** [`durmusun`](https://github.com/durmusun).
 
-Commit history is preserved so every contribution remains attributable. This
-fork is not endorsed by Kacper Kapuściak, Craig de Gouveia, Software Mansion,
-or the upstream Goldie project.
+Source attribution and upstream integration references are retained so every
+contribution remains traceable. This fork is not endorsed by Kacper
+Kapuściak, Craig de Gouveia, Software Mansion, or the upstream Goldie project.
 
 ## License and third-party notices
 

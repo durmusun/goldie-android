@@ -28,7 +28,7 @@ goldie-android - Google Play assets, driven by argent
   goldie-android capture    Replay every scene flow and save raw captures
   goldie-android frame      Composite raw screenshots into framed, captioned PNGs
   goldie-android play       Build the Google Play feature graphic and upload-ready package
-  goldie-android preview    Keep the shared pipeline consistent (Play takes no uploaded videos)
+  goldie-android preview    Join raw clips into a portrait video for a YouTube Play promo
   goldie-android verify     Check finished assets against the store spec tables
   goldie-android manifest   Write out/store.json for the studio app
   goldie-android studio     Serve the studio at http://localhost:4321 (--port <n>, --no-open)

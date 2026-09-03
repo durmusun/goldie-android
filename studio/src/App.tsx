@@ -1,4 +1,6 @@
+import { CameraIcon, TriangleAlertIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { EmptyState } from "./components/EmptyState";
 import { Sidebar } from "./components/Sidebar";
 import { Strip } from "./components/Strip";
 import { useHistory } from "./lib/useHistory";
@@ -7,6 +9,7 @@ import {
   type Design,
   loadDesign,
   loadManifest,
+  ManifestError,
   type SavedDesign,
   type SceneCopy,
   type StoreManifest,
@@ -23,16 +26,24 @@ export function App() {
   const [loaded, setLoaded] = useState<{ manifest: StoreManifest; design: SavedDesign } | null>(
     null,
   );
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     Promise.all([loadManifest(), loadDesign()])
       .then(([manifest, design]) => setLoaded({ manifest, design }))
-      .catch((e: Error) => setError(e.message));
+      .catch((e: Error) => setError(e));
   }, []);
 
-  if (error) return <Empty message={error} />;
-  if (!loaded) return <Empty message="Loading…" />;
+  if (error)
+    return (
+      <EmptyState
+        icon={TriangleAlertIcon}
+        title="The studio could not load"
+        body={error.message}
+        command={error instanceof ManifestError ? error.command : undefined}
+      />
+    );
+  if (!loaded) return null;
   return <Loaded manifest={loaded.manifest} saved={loaded.design} />;
 }
 
@@ -166,8 +177,16 @@ function Loaded({ manifest, saved }: { manifest: StoreManifest; saved: SavedDesi
     return () => style.remove();
   }, [design.fonts]);
 
+  // The exporter appends the bundled CJK typeface as a per-glyph fallback, so
+  // the preview does the same; otherwise the browser would silently substitute
+  // a system font for characters the chosen stack cannot draw. Only the bare
+  // stack is saved to goldie.design.json.
+  const cjk = design.fonts.find((f) => f.key === "noto-sans-sc");
+  const previewFontFamily =
+    cjk && !fontFamily.includes(cjk.family) ? `${fontFamily}, "${cjk.family}"` : fontFamily;
+
   const spec = manifest.devices.find((d) => d.key === device);
-  const captures = design.captures[device];
+  const captures = spec ? design.captures[spec.key] : undefined;
   const frameUrl = frame
     ? `frames/${frame}.png`
     : (design.customFrameUrl ?? `frames/${design.frameVariants[0]}.png`);
@@ -208,7 +227,7 @@ function Loaded({ manifest, saved }: { manifest: StoreManifest; saved: SavedDesi
                 background={background}
                 frameUrl={frameUrl}
                 frameVariant={frame}
-                fontFamily={fontFamily}
+                fontFamily={previewFontFamily}
                 copy={copy}
                 onCopy={setSceneCopy}
                 order={order}
@@ -224,8 +243,20 @@ function Loaded({ manifest, saved }: { manifest: StoreManifest; saved: SavedDesi
                 onSceneLayout={setSceneLayout}
               />
             </div>
+          ) : spec ? (
+            <EmptyState
+              icon={CameraIcon}
+              title={`No screenshots for ${spec.label} yet`}
+              body="Ask your coding agent to capture the configured Android device, or run:"
+              command="goldie-android capture && goldie-android manifest"
+            />
           ) : (
-            <Empty message={`No raw captures for ${device}. Run: bun src/cli.ts capture`} />
+            <EmptyState
+              icon={CameraIcon}
+              title="No Android device is configured"
+              body="Add android-phone to devices in the config, then run:"
+              command="goldie-android capture && goldie-android manifest"
+            />
           )}
         </main>
       </div>
@@ -315,20 +346,10 @@ function storeView(appName: string, saved: SavedView): void {
 function fontFaces(fonts: BundledFont[]): string {
   return fonts
     .flatMap((font) =>
-      font.faces.map(
-        (face) =>
-          `@font-face{font-family:"${font.family}";font-weight:${face.weight};font-style:normal;src:url("${face.url}") format("truetype")}`,
-      ),
+      font.faces.map((face) => {
+        const format = face.url.endsWith(".otf") ? "opentype" : "truetype";
+        return `@font-face{font-family:"${font.family}";font-weight:${face.weight};font-style:normal;src:url("${face.url}") format("${format}")}`;
+      }),
     )
     .join("\n");
-}
-
-function Empty({ message }: { message: string }) {
-  return (
-    <div className="grid h-full place-items-center px-10 text-center">
-      <p className="max-w-md whitespace-pre-line text-[14px] leading-relaxed text-muted-foreground">
-        {message}
-      </p>
-    </div>
-  );
 }

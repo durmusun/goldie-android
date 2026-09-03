@@ -23,3 +23,20 @@ jobs:
       - run: cd studio && bun install --frozen-lockfile
       - run: cd studio && bunx tsc --noEmit
       - run: bun run build
+
+  portable:
+    name: portable (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun test
+      - run: bun run check:ci
+      - run: bun run build
